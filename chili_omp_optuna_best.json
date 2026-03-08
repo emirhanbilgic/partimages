@@ -1,0 +1,11 @@
+{
+    "best_avg_score": 78.89974212347512,
+    "best_miou": 59.32419340666447,
+    "best_acc": 86.75312898596937,
+    "best_map": 90.62190397779153,
+    "best_params": {
+        "sparse_threshold": 0.42500000000000004,
+        "max_dict_cos_sim": 0.75,
+        "max_atoms": 2
+    }
+}

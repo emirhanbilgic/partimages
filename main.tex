@@ -1,0 +1,817 @@
+
+\documentclass[10pt]{article} %
+\usepackage[preprint]{tmlr}
+
+\input{math_commands.tex}
+\newcommand{\method}{CHILI\xspace}
+\usepackage{hyperref}
+\usepackage{url}
+
+\usepackage{xspace}
+\usepackage{graphicx} 
+\usepackage{subcaption}
+\usepackage{comment}
+\usepackage{mathtools}
+
+
+\newcommand\remithesis{}
+\newcommand\remiwacv{}
+\newcommand\remitmlr{}
+\newcommand\gianni{}
+
+\usepackage{makecell}
+\usepackage{stmaryrd}
+
+
+\title{Enhancing Concept Localization in CLIP-based Concept Bottleneck Models}
+
+
+\author{\name Rémi Kazmierczak  \email remi.kazmierczak@ensta-paris.fr \\
+      \addr Unité d'Informatique et d'Ingénierie des Systèmes \\
+      ENSTA Paris, Institut Polytechnique de Paris
+      \AND 
+      \name Steve Azzolin  \email steve.azzolin@unitn.it \\
+      \addr Department of Information Engineering and Computer Science \\
+      University of Trento\\
+      \AND 
+      \name Eloïse Berthier  \email eloise.berthier@ensta-paris.fr \\
+      \addr Unité d'Informatique et d'Ingénierie des Systèmes \\
+      ENSTA Paris, Institut Polytechnique de Paris\\
+      \AND
+      \name Goran Frehse  \email goran.frehse@ensta-paris.fr \\
+      \addr Unité d'Informatique et d'Ingénierie des Systèmes \\
+      ENSTA Paris, Institut Polytechnique de Paris\\
+      \AND
+      \name Gianni Franchi  \email gianni.franchi@ensta-paris.fr \\
+      \addr Unité d'Informatique et d'Ingénierie des Systèmes \\
+      ENSTA Paris, Institut Polytechnique de Paris }
+
+
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+
+\def\month{10}  %
+\def\year{2025} %
+\def\openreview{\url{https://openreview.net/forum?id=XXXX}} %
+
+\begin{document}
+
+
+\maketitle
+
+\begin{abstract}
+This paper addresses explainable AI (XAI) through the lens of Concept Bottleneck Models (CBMs) that do not require explicit concept annotations, relying instead on concepts extracted using CLIP \remitmlr{in a zero-shot manner}. We show that CLIP, which is central in these techniques, is prone to concept hallucination—incorrectly predicting the presence or absence of concepts within an image \remiwacv{in scenarios used in numerous CBMs}, hence undermining the faithfulness of explanations. To mitigate this issue, we introduce Concept Hallucination Inhibition via Localized Interpretability (\method), a technique that disentangles image embeddings and localizes pixels corresponding to target concepts. Furthermore, our approach supports the generation of saliency-based explanations that are more interpretable.
+
+\end{abstract}
+
+\section{Introduction}
+
+\gianni{Deep Neural Networks (DNNs) are now used in many areas, including sensitive domains such as medicine and law. In these settings, trust is essential. To build trust, the field of Explainable Artificial Intelligence (XAI) provides tools that help users understand how DNNs make decisions. One important family of methods is \textit{concept-based explanations}. These explanations describe predictions using human-understandable concepts, often expressed as words. For example, a model that classifies an image as a \textit{dog} might rely on concepts such as \textit{fur}, \textit{ears}, \textit{snout}, or \textit{paws}. The ability of a model to represent raw data (e.g., images) as concepts—called \textit{conceptual representation}—is therefore key to creating models that can provide such explanations. 
+}
+
+\gianni{A popular way to use concepts is to embed them directly into the model. This creates an interpretable latent space, where each neuron corresponds to a concept. Models built this way are known as \textit{Concept Bottleneck Models (CBMs)}~\citep{koh2020concept,bennetot2022greybox}. While CBMs improve interpretability by design, they usually require concept annotations during training, which are expensive and difficult to collect.  
+}
+
+\gianni{
+Recently, contrastive language-image models, such as CLIP~\citep{yan2023learning}, have been widely used for tasks like zero-shot classification and open-world recognition. Because CLIP links images and text, researchers have started using it as a free source of concepts for CBMs~\citep{yang2023language,panousis2023sparse,cui2023ceir}. This removes the need for manual annotations, but also introduces a new challenge: the concepts extracted by CLIP may not always reflect what is actually in the image. 
+}
+
+
+
+\remiwacv{A particularly critical challenge for CBMs is the phenomenon of \textit{concept hallucination} (illustrated in Figure~\ref{fig:teaser}), wherein concepts are inferred based on contextual cues rather than their actual presence within the image. This issue undermines the foundational hypothesis of CBMs—that the concept bottleneck serves as a faithful conceptual representation of the image content. While prior work has addressed related challenges~\citep{oh2025vision,liu2024investigating}, our approach distinguishes itself in two key aspects. First, we not only mitigate concept hallucinations but also enhance their localization by explicitly addressing the spatial distribution of activation maps. Second, we extend the applicability of our method to CBMs, thereby offering a tailored solution for improving both the reliability and interpretability of these models.}
+
+
+\begin{figure}[ht]
+    \centering
+    \begin{subfigure}{0.60\linewidth}
+        \includegraphics[width=\linewidth]{Images/principle_CBM_simple.png}
+        \caption{\textbf{Principle of a CLIP-based concept bottleneck model.}}
+        \label{fig:cbm_simple}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.35\linewidth}
+        \includegraphics[width=\linewidth]{Images/teaser2.png}
+        \caption{\textbf{CLIP hallucination issue.}}
+        \label{fig:teaser1}
+    \end{subfigure}
+    \caption{Using the CLIP-score between embedings of input images and predefined concepts, labeling-free concept extraction can be performed, allowing prediction on an interpretable latent space (left). However, CLIP tends to hallucinate the presence of concepts, troubling the localisation of CLIP-based CBMs (right).}
+    \label{fig:teaser}
+\end{figure}
+
+Our contributions are as follows:
+
+\begin{itemize}
+    \item We conduct an extensive statistical analysis to investigate the relationship between the CLIP-score and the localization of concepts. Notably, our findings demonstrate that CLIP-scores fail to accurately represent the actual location of concepts within images.
+    \item Based on this observation, we propose \method (Concept Hallucination Inhibition via Localized Interpretability), a method to disentangle the activations of CLIP, and consequently the CLIP-score, distinguishing between object representation, which is related to the physical location of the concept, and contextual representation, which pertains to activations associated with features that do not directly represent the concept but suggest its presence.
+    \item \remiwacv{To demonstrate the efficacy of our disentangling method, we employ it as a means to perform image segmentation and binary classification of concepts in spurious situations. We showcase that our method achieves superior results compared to concurrent methods in both tasks.}
+    \item \remitmlr{We apply \method to real-world use cases to construct new, more interpretable CBMs. Our results demonstrate that such an intervention is feasible with only a limited accuracy cost.
+}
+\end{itemize}
+
+\section{Related Work}\label{sec:related_work}
+
+\paragraph{Concept Bottleneck models (CBMs)}
+
+CBMs constitute a class of models that exploit a conceptual representation of input data, termed the ``concept bottleneck,'' to facilitate inference, thereby enhancing interpretability. While certain studies employ custom datasets featuring concept annotations to construct CBMs \citep{koh2020concept,diaz2022explainable}, the emergence of text-image contrastive foundation models has significantly propelled research in this area, enabling the development of CBMs without explicit concept annotations \citep{yan2023learning,kazmierczak2024clip}. Notably, CLIP \citep{yan2023learning} has become the predominant choice for crafting these CBMs~\citep{kazmierczak2025explainability}.
+
+\paragraph{Neuron interpretation}
+
+To interpret the behavior of a model post-training, a commonly employed approach involves identifying the role of specific neurons in the process by detecting patterns that induce their activation. Some methods directly display neuron activations in response to designed inputs \citep{gandelsman2023interpreting}. More sophisticated techniques use statistical analysis on a probing dataset to achieve this goal \citep{shaham2024multimodal,kalibhat2023identifying}. Alternatively, optimization techniques can be employed to determine the input that maximizes the activation of a given neuron \citep{olah2017feature}.
+
+\paragraph{\remitmlr{Saliency based explanations}}
+
+\remitmlr{To explain image-based decisions, saliency-based explanations---which aim to highlight the most influential regions according to the model---are widely adopted. Among these, model-agnostic approaches such as SHAP~\cite{lundberg2017unified}, LIME~\cite{ribeiro2016should}, and RISE~\cite{petsiuk2018rise} are particularly popular due to their versatility. These methods analyze model behavior in response to perturbed versions of the input image.}
+
+\remitmlr{Additionally, the formal structure of deep learning models has enabled alternative approaches for generating saliency maps by directly examining activation patterns~\cite{zhou2016learning,gandelsman2023interpreting}. Another distinct class of deep neural network (DNN)-based saliency methods leverages gradients to weight activations, as seen in Grad-CAM~\cite{selvaraju2017grad}, FullGrad~\cite{srinivas2019full}, and HiResCAM~\cite{draelos2020use}. However, such gradient-based techniques require differentiable computations, a constraint that does not apply to conceptual representations.}
+
+
+
+\section{\remitmlr{Evaluating the concept localization abilities of CLIP}} \label{stud_quality_concept}
+
+\subsection{\remithesis{Preliminaries}}
+
+\remithesis{First, let us define some notions that we consider essential to describe the experiments we will perform.}
+
+
+
+
+\paragraph{\remitmlr{Related studies}}
+
+\remitmlr{The widespread success of CLIP has spurred significant research effort around its interpretability. Existing studies primarily focus on two issues: bias and spurious feature reliance, and concept hallucination.}
+
+\remitmlr{The most extensively studied aspect is bias, often examined through image classification tasks. Works such as those by~\cite{moayeri2023spuriosity,zhang2024common} demonstrate accuracy drops on biased datasets, revealing CLIP's reliance on spurious features. Furthermore,~\cite{birhane2021multimodal,hall2023vision} show that these biases extend to societal concerns, including gender and racial discrimination. Mitigation approaches include fine-tuning~\citep{alabdulmohsin2024clip,gerych2024bendvlm} and activation decomposition~\citep{yeo2025debiasing}. Another key challenge is CLIP's tendency to hallucinate text or objects during text-image similarity computations~\citep{oh2025vision,liu2024investigating}, a phenomenon attributed to the modality gap, where one modality contains more information than the other~\citep{schrodi2024two}.}
+
+\remitmlr{While these studies address general settings, we focus on the specific context of CBMs. This setup presents unique challenges, as concept sets are often highly correlated by design. To our knowledge, the literature lacks a comprehensive evaluation of CLIP's relevance in CBMs, except for the pioneering work by~\cite{debole2025if}, which assesses the quality of embeddings derived from foundation models. Our study distinguishes itself by addressing concept hallucination in CBMs.}
+
+\remitmlr{Another underexplored aspect is localization. CBMs implicitly assume that concept representations should not only detect the presence of concepts but also locate them within images. Pre-CLIP CBMs achieved this through backbones trained with localization-aware loss functions~\citep{diaz2022explainable,bennetot2022greybox}. Regarding mitigation methods, \cite{srivastava2024vlg,huangmodel} propose fine-tuning the CLIP backbone to improve localization. The closest work to ours is~\cite{yeo2025debiasing}, which identifies attention heads responsible for hallucination. However, our method differs in both the identification approach and its application to CBMs.}
+
+\paragraph{\remithesis{Class / concept}}
+
+\remithesis{In the context of CBMs, classes refer to the target labels intended for prediction, which are inherently determined by the dataset. Concepts, by contrast, represent a set of interpretable entities—most commonly textual descriptions—that serve as proxies for performing inference. Within CBMs applied to image classification, an image is first represented in terms of these concepts, after which the class prediction is derived from this conceptual representation. In most implementations, concepts correspond to subcomponents of the target label.
+Two predominant approaches have emerged for defining these concepts. The first one involves prompting large language models: for instance, \cite{yang2023language} extract concepts by querying GPT-3 with prompts such as ``describe what the [CLASS NAME] looks like.'' The second approach leverages dedicated datasets that annotate specific attributes or subparts of the output class present in the image~\citep{diaz2022explainable}.}
+
+
+
+
+
+\subsection{\gianni{Probing CLIP for Concept Hallucination}} \label{sec:stat_analysis}
+
+\gianni{To study potential limitations of CLIP-based Concept Bottleneck Models (CBMs), we first need to understand what drives a high CLIP score. In this subsection, we design an experiment to test whether CLIP embeddings reliably reflect the physical presence of concepts in images, or whether they are influenced by contextual or semantic cues.}
+
+\paragraph{Datasets}
+
+\gianni{
+We perform experiments on three different datasets: ImageNet~\citep{deng2009ImageNet}, MonumAI~\citep{lamas2021monumai}, and CUB~\citep{WahCUB_200_2011}.  
+\begin{itemize}
+    \item \textbf{ImageNet:} A large-scale object classification dataset where classes correspond to everyday objects (e.g., \textit{kit fox}), and concepts refer to object parts (e.g., \textit{head}, \textit{tail}, \textit{paw}). Since ImageNet lacks fine-grained part annotations, we extended it with PartImageNet++~\citep{li2024partImageNet++}.  
+    \item \textbf{MonumAI:} A dataset focused on monument style classification, where classes are architectural styles and concepts correspond to structural elements such as \textit{arches}, \textit{columns}, or \textit{domes}.  
+    \item \textbf{CUB:} A fine-grained bird classification dataset, where concepts are visual parts such as \textit{wings}, \textit{beak}, or \textit{tail}.  
+\end{itemize}
+These datasets cover a wide range of tasks, from generic object recognition to fine-grained classification, making them suitable for evaluating concept detection. A complete list of the concepts used in each dataset is provided in Appendix~\ref{datasets}.
+}
+
+\paragraph{CLIP Score as a Measure of Concept Detection}
+
+\gianni{
+Given an image \( I \) and a text \( T \), CLIP uses an image encoder \( M_{\text{img}}(\cdot) \) and a text encoder \( M_{\text{text}}(\cdot) \) to project them into a shared embedding space. The similarity between image and text is computed by the cosine similarity:
+\begin{equation*}
+    S(I,T) = \langle M_{\text{img}}(I), M_{\text{text}}(T) \rangle \, .
+\end{equation*}
+This score allows CLIP to match images and text without explicit training on the target dataset, which is why it has become a standard tool for zero-shot classification and concept detection. However, if the score is high even when the concept is absent from the image, it indicates a hallucination problem.
+}
+
+\paragraph{Experimental Setup}
+\gianni{
+We construct three subsets of data given two classes \( c_1 \) and \( c_2 \), and a concept \( k \) that is strongly linked to \( c_1 \) but absent from \( c_2 \):  
+\begin{itemize}
+    \item Images of class \( c_1 \) where concept \( k \) is present.  
+    \item Images of class \( c_1 \) where concept \( k \) is absent.  
+    \item Images of class \( c_2 \), where concept \( k \) is always absent by design.  
+\end{itemize}
+For each triplet \((c_1, c_2, k)\), we sample images randomly and repeat the process 10 times. The full list of triplets is given in the appendix.  
+}
+
+\gianni{
+The goal of this setup is to test whether CLIP can tell apart the true presence of a concept from its mere semantic association with a class. Concretely, we compute the average CLIP score of each subset with respect to the concept \( k \). We also compute the \textit{failure rate}, defined as the fraction of cases where the subset without the concept receives a higher score than the subset where the concept is actually present.
+}
+
+\paragraph{Results and Analysis}
+\gianni{
+Table~\ref{table:res_stat_loc} reports the average CLIP score across all three datasets.
+The results show that CLIP does not reliably separate the true presence of a concept from its absence. For example, in both MonumAI and CUB, the scores for \( k \)-present and \( k \)-absent subsets of class \( c_1 \) are almost identical, indicating that CLIP relies heavily on class-level associations rather than visual evidence. The high failure rates (40–50\%) further confirm that CLIP often assigns higher scores to images without the concept than to those containing it. This demonstrates a significant risk of \textit{concept hallucination}, raising concerns about using CLIP-based embeddings as faithful representations in CBMs.
+}
+
+
+
+
+\begin{table*}[h]
+\centering
+\begin{tabular}{ccccc}
+\hline
+ & \thead{c = $c_1$ \\ $k~present$} & \thead{c = $c_1$ \\ $k~absent$} & \thead{c = $c_2$ \\ ($k~absent$)} & \textit{Fail. Rate} \\
+\hline
+\thead{MonumAI} & 18.16 $\pm$ 2.45 & 18.09 $\pm$ 2.38 & 16.71 $\pm$ 2.75 & 0.40 \\
+\thead{CUB} & 15.58 $\pm$ 1.74 & 15.61 $\pm$ 1.65 & 12.73 $\pm$ 2.06 & 0.50\\
+\thead{ImageNet} & 19.35 $\pm$ 1.93 & 19.18 $\pm$ 1.37 & 14.82 $\pm$ 1.80 & 0.40 \\
+\hline
+\end{tabular}
+\caption{\textbf{Average CLIP score on different setups.} In the first column, \( k \) is present in the images. In the second and third ones, \( k \) is not present. \textit{Fail. Rate} presents the failure rate, i.e., the fraction of cases where the subset of images that do not possess the desired concept induces a higher score.}
+\label{table:res_stat_loc}
+\end{table*}
+
+
+\section{Disentangling concept representations} \label{sec:CHILI}
+
+\subsection{\remitmlr{Preliminaries}}
+
+To address this challenge, we introduce a novel method, \method, for disentangling concept localization from concept suggestion within the conceptual representation of images. The primary objective of this approach is to provide users with a conceptual representation that decomposes into distinct components: one related to the object of interest and another one to its surrounding context. By selectively retaining only the object-related component, our method aims to produce a conceptual representation that reduces concept hallucinations.
+
+\paragraph{Notations}
+\gianni{We now describe in more detail how the image encoder \( M_{\text{img}} \) of CLIP computes its representations.  
+The encoder is a Vision Transformer (ViT) consisting of \( L \) stacked transformer layers, each containing a multi-head self-attention (MSA) block and a multi-layer perceptron (MLP) block.  
+The input image \( I \) is first split into a sequence of patches, linearly projected into tokens, and augmented with a special \textit{class token} (denoted by index \textit{cls}). These tokens are processed layer by layer through the transformer.  
+Formally, we denote by \( h \in \llbracket 1,H \rrbracket \): the attention heads, \( l \in \llbracket 1,L \rrbracket \): the transformer layers, \( i \in \llbracket 1,N \rrbracket \): the patch tokens, and
+ \( Z^l \): the residual stream (intermediate representation) at layer \( l \).
+ }
+
+ \gianni{
+The image encoder produces a single vector representation of the image by applying a learned projection \( P \) to the final embedding of the class token. In CLIP, this is written as:
+\begin{equation*}
+M_{\text{img}}(I) = P \cdot \left[ Z^L \right]_{\text{cls}} \, ,
+\end{equation*}
+where \( \left[ Z^L \right]_{\text{cls}} \) denotes the class token at the final layer.
+}
+
+\paragraph{Unrolling the Transformer.}  
+ \gianni{Each layer \( l \) of the transformer updates the residual stream by combining the outputs of the MSA and MLP blocks:
+\begin{equation*}
+Z^l = Z^{l-1} + \mathrm{MSA}^l\!\left(Z^{l-1}\right) + \mathrm{MLP}^l\!\left(\hat{Z}^l\right),
+\end{equation*}
+where \( \hat{Z}^l \) denotes the normalized activations after the attention block.  
+}
+
+\gianni{
+By expanding this recursion, we can express the final class token representation as a sum of contributions from all layers:
+\begin{equation}
+\label{eq:Mimg_unrolled}
+\begin{aligned}
+M_{\text{img}}(I) 
+&= P\left[ Z^0 \right]_{\text{cls}}
++ \sum_{l=1}^L P\left[\mathrm{MSA}^l\!\left(Z^{l-1}\right)\right]_{\text{cls}}
++ \sum_{l=1}^L P\left[\mathrm{MLP}^l\!\left(\hat{Z}^l\right)\right]_{\text{cls}} .
+\end{aligned}
+\end{equation}
+}
+
+
+
+\paragraph{Decomposition into Attention Heads.}  
+\gianni{Following the analysis of~\cite{elhage2021mathematical,gandelsman2023interpreting}, the image embedding~\( M_{\text{img}}(I) \) can be written as the sum of contributions from each transformer layer~\( l \), each attention head~\( h \), and each image token~\( i \). Intuitively, let us consider that a transformer layer has an output linear map (usually denoted~\(W_O^l\)) that mixes the heads and produces the final MSA vector. Applying~\(W_O^l\) and then the projection~\(P\) to the \texttt{cls} MSA output gives
+\[
+P\big[\mathrm{MSA}^l(Z^{l-1})\big]_{\text{cls}}
+= P\Big( W_O^l\big([ \mathrm{Head}_{l,1};\dots;\mathrm{Head}_{l,H}]\big)\Big).
+\]
+For our decomposition it is convenient to view the effect of \(W_O^l\) as a linear map applied to each head and then summed. Thus we may write
+\[
+P\big[\mathrm{MSA}^l(Z^{l-1})\big]_{\text{cls}}
+= \sum_{h=1}^H \sum_{i=0}^N P\,W_{O}^{\,l,h}\big(\alpha^{\,l,h}_{\text{cls},i}\; v_{i}^{\,l,h}\big),
+\]
+where \(W_{O}^{\,l,h}\) denotes the linear map that extracts the contribution of head \(h\) after the usual output projection, \(v_{i}^{\,l,h} \coloneqq V^{l,h}\!\big(Z^{l-1}_i\big)\) is the \emph{value} vector produced for token \(i\) by head \(h\) at layer \(l\), and \(\alpha_{\text{cls},i}^{\,l,h}\) is the attention weight from the class query to token \(i\) in head \(h\), layer \(l\).
+}
+
+\gianni{
+We now define the vector contribution coming from token \(i\), head \(h\), layer \(l\) after all linear projections:
+\begin{equation}
+\label{eq:def_m}
+m_{i,l,h} \;\coloneqq\; P\,W_{O}^{\,l,h}\big( \alpha^{\,l,h}_{\text{cls},i}\; v_{i}^{\,l,h} \big).
+\end{equation}
+Each \(m_{i,l,h}\) is a vector in the same embedding space as \(M_{\text{img}}(I)\). With this definition we can rewrite the sum of all MSA contributions compactly:
+\[
+\sum_{l=1}^L P\big[\mathrm{MSA}^l(Z^{l-1})\big]_{\text{cls}}
+= \sum_{l=1}^L \sum_{h=1}^H \sum_{i=0}^N m_{i,l,h}.
+\]
+}
+
+\gianni{ 
+Using~\eqref{eq:def_m} and the expansion above,  \eqref{eq:Mimg_unrolled} becomes
+\[
+M_{\text{img}}(I)
+= P[Z^0]_{\text{cls}}
++ \sum_{l=1}^L \sum_{h=1}^H \sum_{i=0}^N m_{i,l,h}
++ \sum_{l=1}^L P\big[\mathrm{MLP}^l(\hat Z^l)\big]_{\text{cls}}.
+\]
+The first term \(P[Z^0]_{\text{cls}}\) is the projected initial class token; the last sum collects the MLP contributions. Since, by definition, the CLIP score is
+\[
+S(I,T) \;=\; \big\langle M_{\text{img}}(I),\, M_{\text{text}}(T)\big\rangle \, ,
+\]
+inserting the expression for \(M_{\text{img}}(I)\) gives
+\[
+\begin{aligned}
+S(I,T)
+&= \big\langle P[Z^0]_{\text{cls}},\, M_{\text{text}}(T)\big\rangle
++ \sum_{l=1}^L \sum_{h=1}^H \sum_{i=0}^N \big\langle m_{i,l,h},\, M_{\text{text}}(T)\big\rangle + \sum_{l=1}^L \big\langle P[\mathrm{MLP}^l(\hat Z^l)]_{\text{cls}},\, M_{\text{text}}(T)\big\rangle.
+\end{aligned}
+\]
+Let us define
+\[
+A_{i,l,h}(T) \;\coloneqq\; \big\langle m_{i,l,h},\, M_{\text{text}}(T)\big\rangle,
+\]
+which is the scalar alignment between the head/token contribution and the text embedding. If we collect the small terms (initial class-token projection and the MLP outputs) into a residual \(\epsilon\), we obtain the compact decomposition proposed by \cite{elhage2021mathematical,gandelsman2023interpreting}:
+\begin{equation}
+\label{eq:final_decomp}
+S(I,T) \;=\; \sum_{l=1}^L \sum_{h=1}^H \sum_{i=0}^N A_{i,l,h}(T) \;+\; \epsilon.
+\end{equation}
+Here we have 
+\(
+\epsilon \;=\; \big\langle P[Z^0]_{\text{cls}},\, M_{\text{text}}(T)\big\rangle
++ \sum_{l=1}^L \big\langle P[\mathrm{MLP}^l(\hat Z^l)]_{\text{cls}},\, M_{\text{text}}(T)\big\rangle.
+\)
+}
+
+
+Notably, we can represent the contribution of a specific MSA head \( h \) and layer \( l \) to the score as an attention map \remithesis{by grouping terms $A_{l,i,h}$ by position}, which we denote by \( A_{l,h} = [A_{l,i,h}]_{i=0}^N \). When reshaped, \( A_{l,h} \) can represent the heatmap illustrating the patch-wise contributions \remitmlr{as a tensor of size $N$}. Finally, we denote by \( A \) the summed attention map:
+\begin{equation*}
+    A = \sum_{l=1}^L \sum_{h=1}^H A_{l,h} \, .
+\end{equation*}
+
+\subsection{\gianni{Concept Hallucination Inhibition via Localized Interpretability (CHILI) -- our method }}
+
+Our goal is to find a decomposition of \( A_{l,h} \) into two terms, respectively representing the activations related to the effective presence of the object in the image, and the activations related to the suggestions of the presence of the concept \remitmlr{(see Figure \ref{fig:deomposition})}:
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.7\linewidth]{Images/decomp3.png}
+    \caption{\remitmlr{\textbf{Decomposition of the activation map}}}
+    \label{fig:deomposition}
+\end{figure}
+
+\begin{equation}
+    A_{l,h} = A_{l,h}^{\text{Context}} + A_{l,h}^{\text{Object}}. \label{eq:decomp_activations}
+\end{equation}
+
+\begin{itemize}
+
+    \item \( A_{l,h}^{\text{Context}} \) is linked with all the content in the image that is not the concept, i.e., locations that do not overlap with the segmentation of the concept.
+
+    \item \( A_{l,h}^{\text{Object}} \) is linked with all the content in the image that is the concept, i.e., locations that do overlap with the segmentation of the concept.
+\end{itemize}
+
+
+\paragraph{Filtering Pseudo-Register Artifacts}
+
+\gianni{The first step of our method is to remove \emph{high-norm tokens}, which are known artifacts of Vision Transformers (ViTs)~\citep{darcetvision}.  
+These tokens act like \textit{pseudo-registers}: they tend to store global information, but their spatial localization on the activation map is not meaningful for interpretability.  
+Following this intuition, we separate this component and denote it as the \textit{pseudo-register part}.
+}
+
+\gianni{
+Formally, for each attention map \( A_{l,h} \) at layer \( l \) and head \( h \), we define the pseudo-register part as the residual after applying a median filter:
+\begin{equation*}
+    A_{l,h}^{\text{P. register}} = A_{l,h} - f_{m}(A_{l,h}) \, ,
+\end{equation*}
+where \( f_{m} \) is a median filter with kernel size 3. 
+This operation removes localized noise while isolating the global, non-informative artifacts.
+}
+
+\paragraph{Remaining activations.}  
+\gianni{
+After filtering, we assume that the remaining activations in \( A_{l,h} \) represent the \emph{spatially-dependent part} of the conceptual representation.  
+In other words:
+\begin{itemize}
+    \item some neurons focus on detecting patterns that directly correspond to the object (concept) described by the text \( T \),
+    \item while other neurons detect contextual features that indirectly suggest the presence of \( T \).
+\end{itemize}
+}
+
+
+
+\paragraph{Weighting heads and layers.}  
+To search for such a decomposition, we assign a weight \( w_{l,h} \) to each pair \( (l, h) \) according to a score based on the Intersection over Union \( \text{IoU}(\cdot, \cdot) \) between a pseudo mask based on activations and ground truth segmentations \remiwacv{obtained using a probing dataset:
+\begin{equation*}
+    w_{l,h} = \underset{A_{l,h},G \in \mathcal{D}_{\text{probe}}}{\mathbb{E}}[1-e^{-\alpha~\text{IoU}(h_m(A_{l,h}),G))}] \, , \label{eq:weighting}
+\end{equation*}
+with \( \mathcal{D}_{\text{probe}} \) the probing dataset containing activations \( A_{l,h} \) and ground truth segmentations~\( G \) that segment the concept, \( \alpha \) is a temperature scaling hyperparameter, and  
+\begin{equation*}
+    h_m(A_{l,h}) = \begin{cases}
+        1 ~~~ \text{if} ~~~ f_m(A_{l,h}) > \text{mean}(f_m(A_{l,h})), \\
+        0 ~~~ \text{if} ~~~ f_m(A_{l,h}) \leq \text{mean}(f_m(A_{l,h})).
+    \end{cases}
+\end{equation*}
+In our experiments, the probing dataset corresponds to, for each data point of the training set, the selection of a random concept present in the image, and the corresponding mask}. Using this weight, we define the following decomposition:
+\begin{align*}
+&A_{l,h}^\text{Object} = w_{l,h} f_{m}(A_{l,h}) \\
+    &A_{l,h}^\text{Probe} = (1-w_{l,h}) f_{m}(A_{l,h}) \, .
+\end{align*}
+
+
+\paragraph{Decomposition of activations.}  
+\gianni{Once the decomposition is performed for each head and layer, using these weights, we split each activation map into two parts:
+\begin{align*}
+    A_{l,h}^\text{Object} &= w_{l,h} \cdot f_{m}(A_{l,h}) \, , \\
+    A_{l,h}^\text{Context} &= (1-w_{l,h}) \cdot f_{m}(A_{l,h}) \, .
+\end{align*}
+Here:
+\begin{itemize}
+    \item \( A_{l,h}^\text{Object} \) captures features directly aligned with the concept (object-related),  
+    \item \( A_{l,h}^\text{Context} \) captures features not aligned with the concept, i.e., contextual cues. 
+\end{itemize}
+}
+
+
+
+
+
+\paragraph{Score decomposition.}  
+By combining \eqref{eq:decomp_score}, \eqref{eq:decomp_activations}, and the resummations among tokens:
+\begin{align*}
+S^{\text{Object}} &= \sum_{i=0}^N A_{i}^{\text{Object}} \\
+S^{\text{Context}} &= \sum_{i=0}^N A_{i}^{\text{Context}} \, ,
+\end{align*}
+we can also disentangle the CLIP score into two interpretable contributions:
+\begin{equation}
+    S(I,T) = S^\text{Object} + S^\text{Context} + \epsilon \, . \label{eq:decomp_score}
+\end{equation}
+
+
+\remitmlr{The activations \( A^{\text{Object}}=\sum_{l=1}^L \sum_{h=1}^H A_{l,h}^{\text{Object}} \) and \( A^{\text{Context}}=\sum_{l=1}^L \sum_{h=1}^H A_{l,h}^{\text{Context}} \) can thus be interpreted as the token-level contributions to the scores \( S^{\text{Object}} \) and \( S^{\text{Context}} \), respectively, for the given image and text.} 
+
+\section{Experiments}
+
+\subsection{\remitmlr{Concept detection}}
+
+\remitmlr{The most straightforward way to evaluate the efficiency of our method is to evaluate it on a binary object detection task. To do so, we use the same setup as the statistical analysis in Section~\ref{sec:stat_analysis}. From this setup, we compute the AUROC score in the case where the class present in the image is intended to (column~1 vs column~2 of Table~\ref{table:res_stat_loc}) using the different components  \( S \) (refered as Concept Attention)\( S^{\text{Object}} \) (refered as \method) \( S^{\text{Object}} \) (refered as \method in the table), \( S^{\text{Context}} \), \( S^{\text{P.register}} = \sum_{i=0}^N \sum_{l=1}^L \sum_{h=1}^H A_{i,l,h}^\text{P.register} \) from the decomposition of \eqref{eq:decomp_score}, and locate-then-correct (LTC) \citep{yeo2025debiasing}.  The results are displayed in Table~\ref{tab:auc_roc_scores}.}
+
+\begin{table}
+\centering
+\remiwacv{\begin{tabular}{lcccc}
+\hline
+ & \textit{Monumai} & \textit{ImageNet} & \textit{CUB} \\
+\hline
+LTC \citep{yeo2025debiasing} & 0.555 & 0.566 & 0.532 \\
+Concept Attention \citep{gandelsman2023interpreting} & 0.550 & 0.495 & 0.485 \\
+Register & 0.548 & 0.495 & 0.487 \\
+\method (ours) & \textbf{0.587} &\textbf{ 0.596} & \textbf{0.533} \\
+\hline
+\end{tabular}
+\caption{\textbf{Performance comparison across datasets.} Results are shown for different methods (LTC, \method, Register, and Concept Attention) on three datasets: Monumai, ImageNet, and CUB. Values represent the mean AUC averaged over the different runs.}
+\label{tab:auc_roc_scores}}
+\end{table}
+
+\remithesis{First, we observe that the baseline---which corresponds to using the raw CLIP score $S$---struggles to detect the presence of the concept, thereby reinforcing the findings of Section~\ref{stud_quality_concept}. Regarding the disentangled components, the \( S^{\text{Context}} \) component also exhibits poor detection performance. In contrast, the \( S^{\text{Object}} \) component demonstrates a significantly higher detection capability, as intended by design.}
+
+\remiwacv{The use of the pseudo register component $S^{\text{P.register}}$ showcases similar performances to using the raw CLIP score, indicating that pseudo registers contain non-localised, hallucination-prone information.}
+
+\subsection{Object segmentation}
+
+\gianni{To test whether our method can localize concepts in images, we adapt it into a segmentation module.  
+The task is to segment both \emph{classes} and \emph{concepts} from ImageNet across the entire test set.  
+In practice, we evaluate how well the activation maps highlight the relevant pixels using three standard metrics:  
+\begin{itemize}
+    \item \textbf{Pixel accuracy (Acc.)} — percentage of correctly classified pixels,  
+    \item \textbf{mean Intersection over Union (mIoU)} — overlap between prediction and ground truth masks,  
+    \item \textbf{mean Average Precision (mAP)} — quality of the predicted mask in terms of precision.  
+\end{itemize}
+}
+
+\gianni{
+We compare our method with several post-hoc interpretability approaches (i.e., without fine-tuning the model):  
+LRP~\citep{binder2016layer}, partial-LRP~\citep{voita2019analyzing}, rollout~\citep{abnar2020quantifying}, raw attention, Grad-CAM~\citep{selvaraju2017grad}, Chefer et al.~\citep{chefer2021generic}, and Concept Attention~\citep{gandelsman2023interpreting}.  
+Among them, two are natural baselines for the \textit{concept-level segmentation}:  
+\begin{itemize}
+    \item \textbf{Raw attention:} the penultimate layer of the vision transformer (\( M_{\text{img}}(I) \)),  
+    \item \textbf{Concept Attention:} the original, non-disentangled activation map \( A \).  
+\end{itemize}
+Table~\ref{table:results_segment} reports the results. We highlight the scores of our \emph{Object} component (\method) \( A^{\text{Object}} \).
+}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lccc}
+\hline
+Method & Pixel Acc. $\uparrow$ & mIoU $\uparrow$ & mAP $\uparrow$ \\
+\hline
+\multicolumn{4}{l}{\textit{Class-level segmentation}} \\
+LRP & 52.81 & 33.57 & 54.37 \\
+partial-LRP & 61.49 & 40.71 & 72.29 \\
+rollout & 60.63 & 40.64 & 74.47 \\
+raw attention & 65.67 & 43.83 & 76.05 \\
+GradCAM & 70.27 & 44.50 & 70.30 \\
+Chefer et al. & 69.21 & 47.47 & 78.29 \\
+Concept Attention & 76.78 & 57.14 & 82.89 \\
+\method (ours) & \textbf{78.79} & \textbf{60.22} & \textbf{84.86} \\
+\hline
+\multicolumn{4}{l}{\textit{Concept-level segmentation}} \\
+Concept Attention & 70.86 & 46.17 & 87.65 \\
+\method (ours) & \textbf{71.76} & \textbf{47.74} & \textbf{88.38} \\
+\hline
+\end{tabular}
+\caption{\textbf{Segmentation performance on ImageNet.} 
+Results for class-level segmentation (top) and concept-level segmentation (bottom). Higher is better.}
+\label{table:results_segment}
+\end{table}
+
+\paragraph{Analysis.}  
+\gianni{From the class-level results, we observe that our method outperforms all baselines across all three metrics.  
+In particular:
+\begin{itemize}
+    \item Compared to \textbf{Concept Attention}, our disentangled \emph{Object} map improves pixel accuracy by +2.0 points (76.78 $\rightarrow$ 78.79), mIoU by +3.1 points (57.14 $\rightarrow$ 60.22), and mAP by +2.0 points (82.89 $\rightarrow$ 84.86).  
+    \item The improvement over other classical methods such as Grad-CAM (+8.5 mIoU) or rollout (+19.6 mAP) is even more pronounced.  
+\end{itemize}
+At the concept level, we also see consistent but smaller gains: about +1 point in accuracy, +1.5 in mIoU, and +0.7 in mAP.  
+}
+\gianni{These results confirm that isolating the \emph{Object} component leads to cleaner and more accurate localization than using the full, entangled activation map.  This demonstrates the interest of \method.
+}
+
+\paragraph{Remark.}  
+\gianni{
+From an XAI perspective, simply providing accurate object segmentations is not enough to build a reliable Concept Bottleneck Model (CBM).  
+In the next section, we show how \method can be leveraged to construct a CBM that is not only accurate but also trustworthy.
+}
+
+
+
+
+
+\section{Applying \method to CBMs}
+\subsection{Method}
+
+\gianni{In the previous sections, we showed how \method allows us to disentangle object-related and context-related activations, leading to more faithful concept extraction.  
+We now turn to the question of how this disentanglement impacts the performance of Concept Bottleneck Models (CBMs).
+}
+
+\paragraph{Baseline.}  
+\gianni{As a baseline, we consider a standard CLIP-based CBM \cite{yan2023robust}, which relies directly on the full CLIP similarity score \( S(I,T) \).  
+In contrast, our approach replaces this score with the disentangled \textit{object-only} component \( S^{\text{Object}} \), introduced in Section~\ref{sec:CHILI}. }
+
+\gianni{Since \( S^{\text{Object}} \) is less affected by contextual bias and concept hallucination, we hypothesize that it can yield a more \remitmlr{interpretable} CBM, albeit at the possible cost of predictive accuracy. %
+}
+
+\paragraph{Evaluation.}  
+\gianni{For each dataset, we compare the classification accuracy of the baseline CBM (using \( S \)) with the proposed CBM (using \( S^{\text{Object}} \)).  
+The results are reported in Table~\ref{tab:computation_acc}.
+}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lccc}
+\hline
+Method & \textit{Monumai} & \textit{ImageNet} & \textit{CUB} \\
+\hline
+Baseline CBM ($S$) & 74.67 & 73,55 & 65.05 \\
+\method (ours, $S^{\text{Object}}$) & 74.34 & 72,80 & 64.90 \\
+\hline
+\end{tabular}
+\caption{\textbf{Classification accuracy of CBMs with and without \method.}  
+Results are shown for three datasets.  
+Baseline CBM uses the full similarity score \( S \), while our approach uses the disentangled score \( S^{\text{Object}} \).  
+}
+\label{tab:computation_acc}
+\end{table}
+
+\paragraph{Analysis.}  
+\gianni{Our results show that applying \method leads to only a minor decrease in accuracy across datasets, suggesting that it can be a viable strategy for improving CBM interpretability without severely compromising performance.  
+The effect depends on the dataset:}
+\remitmlr{\begin{itemize}
+    \item \textbf{CUB:} There is almost no accuracy loss, which suggests that object-related signals dominate the decision process in this dataset.  
+    \item \textbf{Monumai and ImageNet:} A small drop in accuracy occurs, likely because contextual features (e.g., background or environment) play a role in classification. By removing them, the model becomes less biased but also loses some useful cues.  
+\end{itemize}}
+
+\paragraph{Discussion.}  
+\gianni{Overall, these findings highlight a trade-off:  
+\begin{itemize}
+    \item On the positive side, \method reduces bias and mitigates errors caused by spurious correlations, especially in fine-grained datasets such as CUB.  
+    \item On the negative side, filtering out contextual information inevitably discards some predictive features, which can slightly reduce accuracy.  
+\end{itemize}
+Importantly, there is no guarantee that reducing hallucinations will improve accuracy.  
+However, from an XAI perspective, prioritizing faithfulness and interpretability is crucial, and our results suggest that \method can achieve this while keeping performance reasonably close to the baseline.
+}
+
+
+
+\subsection{\remitmlr{Explanations}}
+
+\remitmlr{Once the model is trained, we can leverage the activations produced to build visual explanations that gather the name of the most important concept and their location on the image. We explain the process below.}
+
+\remitmlr{We extract the concept representation using \method. We then apply DeepSHAP~\citep{lundberg2017unified} to the model, with a key distinction: rather than computing SHAP values at the image level, as is conventional for image classification tasks, we perform the computation at the concept level. This approach allows us to quantify the importance of each concept in the inference of the target label. Finally, for the top five concepts identified by DeepSHAP, we visualize their contributions as heatmaps derived from their corresponding activations, $ A^{\text{Object}} $. Examples of these explanations are presented in Figure~\ref{fig:ex_expl} and Appendix~\ref{additional_samples}.}
+
+\begin{figure}
+    \centering    \includegraphics[width=0.9\linewidth,clip]{Images/samples_expl/expl_Orchard_Oriole_0030_91612.png}
+    \caption{\textbf{Example of explanation produced by the intervention of \method in a CBM.} On the bottom left, the input image. On the bottom right, the SHAP values. Target label: \textit{Orchard Oriole}}
+    \label{fig:ex_expl}
+\end{figure}
+
+
+\section{Limitations and discussion}
+
+In this work, we studied the ability of CLIP to focus on patterns located in the object designated by the textual encoding to produce an inference and proposed a way to disentangle the activations of the model without fine-tuning. We want to discuss here the limitations of such a procedure.
+
+\paragraph{Layer/head decomposition}
+
+We base our approach on a layer/head decomposition to achieve the disentangling. Such an assumption, as noted by \cite{gandelsman2023interpreting}, neglects indirect effects, i.e., potential interactions from previous layers on deeper ones. Additionally, we assume that each position in the layer/head pairs can be attributed to pseudo-register, context, or object (or at least can be more easily separated by doing so).
+
+\paragraph{Other factors of a high CLIP score}
+
+We voluntarily focus on the impact of the object's presence on the increase or decrease of the CLIP score. However, being a complex model, the factors that influence high CLIP scores are multifactorial. For example, the proportion of salient features \citep{darcetvision} or the text prompt \citep{zhou2022conditional} also influences its output. Such factors are a notable reason why our disentangling does not completely eliminate the failures in the experiments of Section~\ref{sec:stat_analysis}. \remithesis{For example, the images from the case \( c = c_1; k ~ absent \) have by construction many more close-ups than the case \( c = c_1; k ~ present \), inducing perturbation towards higher scores.} It is also evident that CLIP suffers from numerous biases \citep{moayeri2023spuriosity} that can influence the score in either a decreasing or increasing manner.
+
+\paragraph{Role of pseudo registers}
+
+One aspect of our disentangling is the presence of high-norm artifacts \citep{darcetvision}, which we refer to as pseudo-registers. The reason we dedicated a special part to them in our decomposition is that their role is ambiguous: since they do not seem to exhibit spatial coherence with the image, it is difficult to determine whether they store information about the object or the concept.
+
+\section{Conclusion}
+
+In this paper, we examined the limitations of using CLIP as a concept extractor. Through statistical analysis, we identified challenges associated with correlating high scores with the localization of concepts in images, particularly in cases where the presence of a concept is merely suggested. To address this issue, we propose a method that factorizes the embedding space into components related to the object, the context, and pseudo-registers. Empirical results demonstrate that our disentangling approach can partially eliminate the contextual aspects of conceptual representation thereby advancing towards more localization-focused CLIP-based concept bottleneck models. \remitmlr{In addition, while a probing dataset is required to compute the calibration performed in our method, our approach does not require any additional training of the model.}
+
+However, several limitations are present in our study. Primarily, we were unable to achieve complete disentanglement of the activations. This shortcoming can be attributed to multiple hypotheses we adopted in our experimental setup. Notably, we neglected second-order effects and assumed that attention heads are not polysemantic, an assumption that is somewhat reductive.
+
+In this paper, we limit ourselves to CLIP based on ViT backbones. This restriction is motivated by the fact that this paradigm has become the gold standard for most zero-shot CBMs released in recent years \citep{yang2023language,yan2023learning,kazmierczak2024clip}. However, we plan to extend these analyses to other overlooked backbones, such as those based on ResNet, and models, such as LLaVa. The goal is twofold: first, this opens the way to post-hoc disentangling on other CBMs; secondly, it allows us to study the similarities and differences across various embedding networks, potentially leading to more interpretable zero-shot CBMs.
+\bibliography{main}
+\bibliographystyle{tmlr}
+
+\appendix
+
+\section{Use of CLIP in CBMs} \label{use_clip_cbm}
+
+\remitmlr{Table \ref{table:pfm_usage} presents the foundation models used in the CBMs highlighted in the study of \cite{kazmierczak2025explainability}. Note that the list is not exhaustive.}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\hline
+Title & PFM used \\
+\hline
+STAIR \citep{chen2023stair}& CLIP \\
+Chat GPT XAI \citep{liu2023chatgpt} & CLIP \\
+ARTxAI \citep{fumanal2023artxai} & CLIP \\
+Explanable meme classification \citep{thakur2022multimodal}& CLIP \\
+Label free CBM \citep{oikarinen2023label} & CLIP \\
+LaBo \citep{yang2023language} & CLIP \\
+Learning Concise \citep{yan2023learning} & CLIP \\
+Sparse CBM \citep{panousis2023sparse}& CLIP \\
+CBM with filtering \citep{kim2023concept} & CLIP \\
+Robust CBM \citep{yan2023robust} & CLIP \\
+Hierarchichal CBM \citep{panousis2024coarse} & CLIP \\
+ChatGPT CBM \citep{ren2023chatgpt}& CLIP \\
+Skin lesion CBM \citep{patricio2024towards}& CLIP \\
+R-VLM \citep{xu2023retrieval}& CLIP \\
+CEIR \citep{cui2023ceir} & CLIP \\
+Concept Gridlock \citep{echterhoff2024driving} & CLIP \\
+SpLiCE \citep{bhalla2024interpreting}& CLIP \\
+MMCBM \citep{wu2025concept} & CLIP \\
+XCoOp \citep{bie2024xcoop} & CLIP \\
+CLIP-QDA \citep{kazmierczak2024clip}& CLIP \\
+Text-To-Concept \citep{moayeri2023text} & CLIP \\
+LLM-Mutate \citep{chiquier2024evolving} & Llama2+CLIP \\
+VAMOS \citep{wang2024vamos} & BLIP-2 \\
+Q-SENN \citep{norrenbrock2024q} & CLIP \\
+ExTraCT \citep{yow2024extract} & CLIP+BERT \\
+Adaptative CBM \citep{choi2024adaptive} & CLIP \\
+Stochastic CBM \citep{vandenhirtz2024stochastic} & CLIP \\
+Med-MICN \citep{hu2024towards} & CLIP \\
+VLG-CBM \citep{srivastava2024vlg} & CLIP \\
+\hline
+\end{tabular}
+\caption{\textbf{PFM usage in CBMs.}}
+\label{table:pfm_usage}
+\end{table}
+
+\section{Datasets} \label{datasets}
+
+\paragraph{ImageNet}
+
+The first dataset we use is ImageNet \citep{deng2009ImageNet}, that provides annotation of images into 1000 classes. The dataset having not concept-level annotations natively, we used the PartImageNet++ dataset \citep{li2024partImageNet++}, which provides semantic segmentation annotations for different images of ImageNet. The scenarios used in our study are detailed in Table \ref{tab:runs_ImageNet}.
+
+\begin{table*}[h]
+\centering
+\begin{tabular}{cccc}
+\hline
+Scenario &$c_1$ & $c_2$ & $k$ \\
+\hline
+1 & Tiger\_cat & Gondola & tail \\
+2 & Bolete & Stole & lamellae \\
+3 & LesserPanda & BlackSwan & paw \\
+4 & ModelT & Turnstile & wheel \\
+5 & Plunger & CommonIguana & handle \\
+6 & AnalogClock & Goldfish & dial \\
+7 & Fly & Strawberry & wing \\
+8 & Barracouta & Barbell & fin \\
+9 & ComputerKeyboard & Convertible & key \\
+10 & FountainPen & HowlerMonkey & ink\_cartridge \\
+\hline
+\end{tabular}
+\caption{\textbf{List of ImageNet runs with respective triplets classes $c_1$, $c_2$, and concepts $k$.}}
+\label{tab:runs_ImageNet}
+\end{table*}
+
+\paragraph{Monumai}
+
+\remiwacv{Monumai \citep{lamas2021monumai} is a specialized dataset containing images of monuments. It is composed of 908 images. Each image is annotated accordingly to the overall structure that corresponds to the class, and the architectural features that corresponds to the concepts. There are 15 concepts and 4 classes available. The scenarios used in our study are detailed in Table \ref{tab:runs_monumai}.}
+
+\begin{table*}[h]
+\centering
+\begin{tabular}{cccc}
+\hline
+Scenario & $c_1$ & $c_2$ & $k$ \\
+\hline
+1 & hispanic-muslim & baroque & lobed\_arch \\
+2 & baroque & renaissance & porthole \\
+3 & baroque & gothic & broken\_pediment \\
+4 & baroque & renaissance & solomonic\_column \\
+5 & gothic & hispanic-muslim & pointed\_arch \\
+6 & renaissance & baroque & serliana \\
+7 & gothic & baroque & trefoil\_arch \\
+8 & baroque & renaissance & rounded\_arch \\
+9 & gothic & renaissance & ogee\_arch \\
+\hline
+\end{tabular}
+\caption{\textbf{List of Monumai runs with respective triplets classes $c_1$, $c_2$, and concepts $k$.}}
+\label{tab:runs_monumai}
+\end{table*}
+
+
+\paragraph{CUB}
+
+\remiwacv{CUB \citep{WahCUB_200_2011}, is a dataset dedicated to the classification of birds, with 200 classes corresponding to species. Concept level, localised annotations are also not available natively. To obtained such annotation, we used the procedure of VLG-CBM \citep{srivastava2024vlg} that uses GroundingDino \citep{liu2024grounding} to localize concepts as bounding boxes. The scenarios used in our study are detailed in Table~\ref{tab:runs_cub}.}
+
+\begin{table*}[h]
+\centering
+\begin{tabular}{cccc}
+\hline
+Scenario & $c_1$ & $c_2$ & $k$ \\
+\hline
+1 & Orchard Oriole & Least Auklet & long tail \\
+2 & Red headed Woodpecker & Bay breasted Warbler & long pointed beak \\
+3 & Worm eating Warbler & Chuck will Widow & yellowish belly \\
+4 & Whip poor Will & Rock Wren & brown or grayish body \\
+5 & House Sparrow & Belted Kingfisher & brown streaks on the chest \\
+6 & Herring Gull & Worm eating Warbler & black wingtips \\
+7 & Ring billed Gull & Red breasted Merganser & white body with gray wings \\
+8 & Red bellied Woodpecker & Red breasted Merganser & white front \\
+9 & Golden winged Warbler & Geococcyx & white belly \\
+10 & Pied Kingfisher & Vermilion Flycatcher & black back \\
+\hline
+\end{tabular}
+\caption{\textbf{List of CUB runs with respective triplets classes $c_1$, $c_2$, and concepts $k$.}}
+\label{tab:runs_cub}
+\end{table*}
+
+\section{\remitmlr{Additional samples}} \label{additional_samples}
+
+\begin{figure}
+    \centering    \includegraphics[width=0.9\linewidth,clip]{Images/samples_expl/expl_Brown_Creeper_0069_24618.png}
+    \caption{\textbf{Example of explanation produced by the intervention of \method in a CBM.} On the bottom left, the input image. On the bottom right, the SHAP values. Target label: \textit{Brown Creeper}}
+    \label{fig:ex_expl2}
+\end{figure}
+
+\begin{figure}
+    \centering    \includegraphics[width=0.9\linewidth,clip]{Images/samples_expl/expl_Cape_Glossy_Starling_0074_129294.png}
+    \caption{\textbf{Example of explanation produced by the intervention of \method in a CBM.} On the bottom left, the input image. On the bottom right, the SHAP values. Target label: \textit{Cape Glossy Starling}}
+    \label{fig:ex_expl3}
+\end{figure}
+
+\begin{figure}
+    \centering    \includegraphics[width=0.9\linewidth,clip]{Images/samples_expl/expl_House_Sparrow_0049_110976.png}
+    \caption{\textbf{Example of explanation produced by the intervention of \method in a CBM.} On the bottom left, the input image. On the bottom right, the SHAP values. Target label: \textit{House Sparrow}}
+    \label{fig:ex_expl4}
+\end{figure}
+
+\begin{figure}
+    \centering    \includegraphics[width=0.9\linewidth,clip]{Images/samples_expl/expl_House_Wren_0025_187160.png}
+    \caption{\textbf{Example of explanation produced by the intervention of \method in a CBM.} On the bottom left, the input image. On the bottom right, the SHAP values. Target label: \textit{House Wren}}
+    \label{fig:ex_expl5}
+\end{figure}
+
+\begin{figure}
+    \centering    \includegraphics[width=0.9\linewidth,clip]{Images/samples_expl/expl_Red_Bellied_Woodpecker_0031_180975.png}
+    \caption{\textbf{Example of explanation produced by the intervention of \method in a CBM.} On the bottom left, the input image. On the bottom right, the SHAP values. Target label: \textit{Red Bellied Woodpecker}}
+    \label{fig:ex_expl6}
+\end{figure}
+
+
+\begin{figure}
+    \centering    \includegraphics[width=0.9\linewidth,clip]{Images/samples_expl/expl_Red_Legged_Kittiwake_0009_795459.png}
+    \caption{\textbf{Example of explanation produced by the intervention of \method in a CBM.} On the bottom left, the input image. On the bottom right, the SHAP values. Target label: \textit{Red Legged Kittiwake}}
+    \label{fig:ex_expl7}
+\end{figure}
+
+
+\begin{figure}
+    \centering    \includegraphics[width=0.9\linewidth,clip]{Images/samples_expl/expl_Scissor_Tailed_Flycatcher_0058_41948.png}
+    \caption{\textbf{Example of explanation produced by the intervention of \method in a CBM.} On the bottom left, the input image. On the bottom right, the SHAP values. Target label: \textit{Scissor Tailed Flycatcher}}
+    \label{fig:ex_expl8}
+\end{figure}
+
+\begin{figure}
+    \centering    \includegraphics[width=0.9\linewidth,clip]{Images/samples_expl/expl_Tree_Swallow_0066_135788.png}
+    \caption{\textbf{Example of explanation produced by the intervention of \method in a CBM.} On the bottom left, the input image. On the bottom right, the SHAP values. Target label: \textit{Tree Swallow}}
+    \label{fig:ex_expl9}
+\end{figure}
+
+
+\begin{figure}
+    \centering    \includegraphics[width=0.9\linewidth,clip]{Images/samples_expl/expl_Worm_Eating_Warbler_0046_176053.png}
+    \caption{\textbf{Example of explanation produced by the intervention of \method in a CBM.} On the bottom left, the input image. On the bottom right, the SHAP values. Target label: \textit{Worm Eating Warbler}}
+    \label{fig:ex_expl10}
+\end{figure}
+
+
+\end{document}

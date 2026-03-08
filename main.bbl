@@ -1,0 +1,348 @@
+\begin{thebibliography}{68}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Abnar \& Zuidema(2020)Abnar and Zuidema]{abnar2020quantifying}
+Samira Abnar and Willem Zuidema.
+\newblock Quantifying attention flow in transformers.
+\newblock \emph{arXiv preprint arXiv:2005.00928}, 2020.
+
+\bibitem[Alabdulmohsin et~al.(2024)Alabdulmohsin, Wang, Steiner, Goyal, D'Amour, and Zhai]{alabdulmohsin2024clip}
+Ibrahim Alabdulmohsin, Xiao Wang, Andreas Steiner, Priya Goyal, Alexander D'Amour, and Xiaohua Zhai.
+\newblock Clip the bias: How useful is balancing data in multimodal learning?
+\newblock \emph{arXiv preprint arXiv:2403.04547}, 2024.
+
+\bibitem[Bennetot et~al.(2022)Bennetot, Franchi, Del~Ser, Chatila, and Diaz-Rodriguez]{bennetot2022greybox}
+Adrien Bennetot, Gianni Franchi, Javier Del~Ser, Raja Chatila, and Natalia Diaz-Rodriguez.
+\newblock Greybox xai: A neural-symbolic learning framework to produce interpretable predictions for image classification.
+\newblock \emph{Knowledge-Based Systems}, 258:\penalty0 109947, 2022.
+
+\bibitem[Bhalla et~al.(2024)Bhalla, Oesterling, Srinivas, Calmon, and Lakkaraju]{bhalla2024interpreting}
+Usha Bhalla, Alex Oesterling, Suraj Srinivas, Flavio Calmon, and Himabindu Lakkaraju.
+\newblock Interpreting clip with sparse linear concept embeddings (splice).
+\newblock \emph{Advances in Neural Information Processing Systems}, 37:\penalty0 84298--84328, 2024.
+
+\bibitem[Bie et~al.(2024)Bie, Luo, Chen, and Chen]{bie2024xcoop}
+Yequan Bie, Luyang Luo, Zhixuan Chen, and Hao Chen.
+\newblock Xcoop: Explainable prompt learning for computer-aided diagnosis via concept-guided context optimization.
+\newblock In \emph{International Conference on Medical Image Computing and Computer-Assisted Intervention}, pp.\  773--783. Springer, 2024.
+
+\bibitem[Binder et~al.(2016)Binder, Montavon, Lapuschkin, M{\"u}ller, and Samek]{binder2016layer}
+Alexander Binder, Gr{\'e}goire Montavon, Sebastian Lapuschkin, Klaus-Robert M{\"u}ller, and Wojciech Samek.
+\newblock Layer-wise relevance propagation for neural networks with local renormalization layers.
+\newblock In \emph{International Conference on Artificial Neural Networks}, pp.\  63--71, 2016.
+
+\bibitem[Birhane et~al.(2021)Birhane, Prabhu, and Kahembwe]{birhane2021multimodal}
+Abeba Birhane, Vinay~Uday Prabhu, and Emmanuel Kahembwe.
+\newblock Multimodal datasets: misogyny, pornography, and malignant stereotypes.
+\newblock \emph{arXiv preprint arXiv:2110.01963}, 2021.
+
+\bibitem[Chefer et~al.(2021)Chefer, Gur, and Wolf]{chefer2021generic}
+Hila Chefer, Shir Gur, and Lior Wolf.
+\newblock Generic attention-model explainability for interpreting bi-modal and encoder-decoder transformers.
+\newblock In \emph{Proceedings of the IEEE/CVF International Conference on Computer Vision}, pp.\  397--406, 2021.
+
+\bibitem[Chen et~al.(2023)Chen, Zhang, Cao, Shen, Gunter, Jose, Toshev, Shlens, Pang, and Yang]{chen2023stair}
+Chen Chen, Bowen Zhang, Liangliang Cao, Jiguang Shen, Tom Gunter, Albin~Madappally Jose, Alexander Toshev, Jonathon Shlens, Ruoming Pang, and Yinfei Yang.
+\newblock Stair: Learning sparse text and image representation in grounded tokens.
+\newblock \emph{arXiv preprint arXiv:2301.13081}, 2023.
+
+\bibitem[Chiquier et~al.(2024)Chiquier, Mall, and Vondrick]{chiquier2024evolving}
+Mia Chiquier, Utkarsh Mall, and Carl Vondrick.
+\newblock Evolving interpretable visual classifiers with large language models.
+\newblock In \emph{European Conference on Computer Vision}, pp.\  183--201. Springer, 2024.
+
+\bibitem[Choi et~al.(2024)Choi, Raghuram, Li, Banerjee, and Jha]{choi2024adaptive}
+Jihye Choi, Jayaram Raghuram, Yixuan Li, Suman Banerjee, and Somesh Jha.
+\newblock Adaptive concept bottleneck for foundation models.
+\newblock In \emph{ICML 2024 Workshop on Foundation Models in the Wild}, 2024.
+
+\bibitem[Cui et~al.(2023)Cui, Liu, Li, and Yuan]{cui2023ceir}
+Yan Cui, Shuhong Liu, Liuzhuozheng Li, and Zhiyuan Yuan.
+\newblock Ceir: Concept-based explainable image representation learning.
+\newblock \emph{arXiv preprint arXiv:2312.10747}, 2023.
+
+\bibitem[Darcet et~al.(2024)Darcet, Oquab, Mairal, and Bojanowski]{darcetvision}
+Timoth{\'e}e Darcet, Maxime Oquab, Julien Mairal, and Piotr Bojanowski.
+\newblock Vision transformers need registers.
+\newblock In \emph{The Twelfth International Conference on Learning Representations}, 2024.
+
+\bibitem[Debole et~al.(2025)Debole, Barbiero, Giannini, Passerini, Teso, and Marconato]{debole2025if}
+Nicola Debole, Pietro Barbiero, Francesco Giannini, Andrea Passerini, Stefano Teso, and Emanuele Marconato.
+\newblock If concept bottlenecks are the question, are foundation models the answer?
+\newblock \emph{arXiv preprint arXiv:2504.19774}, 2025.
+
+\bibitem[Deng et~al.(2009)Deng, Dong, Socher, Li, Li, and Fei-Fei]{deng2009ImageNet}
+Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and Li~Fei-Fei.
+\newblock Imagenet: A large-scale hierarchical image database.
+\newblock In \emph{2009 IEEE Conference on Computer Vision and Pattern Recognition}, pp.\  248--255, 2009.
+
+\bibitem[D{\'\i}az-Rodr{\'\i}guez et~al.(2022)D{\'\i}az-Rodr{\'\i}guez, Lamas, Sanchez, Franchi, Donadello, Tabik, Filliat, Cruz, Montes, and Herrera]{diaz2022explainable}
+Natalia D{\'\i}az-Rodr{\'\i}guez, Alberto Lamas, Jules Sanchez, Gianni Franchi, Ivan Donadello, Siham Tabik, David Filliat, Policarpo Cruz, Rosana Montes, and Francisco Herrera.
+\newblock Explainable neural-symbolic learning (x-nesyl) methodology to fuse deep learning representations with expert knowledge graphs: The monumai cultural heritage use case.
+\newblock \emph{Information Fusion}, 79:\penalty0 58--83, 2022.
+
+\bibitem[Draelos \& Carin(2020)Draelos and Carin]{draelos2020use}
+Rachel~Lea Draelos and Lawrence Carin.
+\newblock Use hirescam instead of grad-cam for faithful explanations of convolutional neural networks.
+\newblock \emph{arXiv preprint arXiv:2011.08891}, 2020.
+
+\bibitem[Echterhoff et~al.(2024)Echterhoff, Yan, Han, Abdelraouf, Gupta, and McAuley]{echterhoff2024driving}
+Jessica Echterhoff, An~Yan, Kyungtae Han, Amr Abdelraouf, Rohit Gupta, and Julian McAuley.
+\newblock Driving through the concept gridlock: Unraveling explainability bottlenecks in automated driving.
+\newblock In \emph{Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision}, pp.\  7346--7355, 2024.
+
+\bibitem[Elhage et~al.(2021)Elhage, Nanda, Olsson, Henighan, Joseph, Mann, Askell, Bai, Chen, Conerly, et~al.]{elhage2021mathematical}
+Nelson Elhage, Neel Nanda, Catherine Olsson, Tom Henighan, Nicholas Joseph, Ben Mann, Amanda Askell, Yuntao Bai, Anna Chen, Tom Conerly, et~al.
+\newblock A mathematical framework for transformer circuits.
+\newblock \emph{Transformer Circuits Thread}, 1\penalty0 (1):\penalty0 12, 2021.
+
+\bibitem[Fumanal-Idocin et~al.(2023)Fumanal-Idocin, Andreu-Perez, Cord{\'o}n, Hagras, and Bustince]{fumanal2023artxai}
+Javier Fumanal-Idocin, Javier Andreu-Perez, Oscar Cord{\'o}n, Hani Hagras, and Humberto Bustince.
+\newblock Artxai: Explainable artificial intelligence curates deep representation learning for artistic images using fuzzy techniques.
+\newblock \emph{IEEE Transactions on Fuzzy Systems}, 32\penalty0 (4):\penalty0 1915--1926, 2023.
+
+\bibitem[Gandelsman et~al.(2023)Gandelsman, Efros, and Steinhardt]{gandelsman2023interpreting}
+Yossi Gandelsman, Alexei~A Efros, and Jacob Steinhardt.
+\newblock Interpreting clip's image representation via text-based decomposition.
+\newblock \emph{arXiv preprint arXiv:2310.05916}, 2023.
+
+\bibitem[Gerych et~al.(2024)Gerych, Zhang, Hamidieh, Pan, Sharma, Hartvigsen, and Ghassemi]{gerych2024bendvlm}
+Walter Gerych, Haoran Zhang, Kimia Hamidieh, Eileen Pan, Maanas~K Sharma, Tom Hartvigsen, and Marzyeh Ghassemi.
+\newblock Bendvlm: Test-time debiasing of vision-language embeddings.
+\newblock \emph{Advances in Neural Information Processing Systems}, 37:\penalty0 62480--62502, 2024.
+
+\bibitem[Hall et~al.(2023)Hall, Gustafson, Adcock, Misra, and Ross]{hall2023vision}
+Melissa Hall, Laura Gustafson, Aaron Adcock, Ishan Misra, and Candace Ross.
+\newblock Vision-language models performing zero-shot tasks exhibit gender-based disparities.
+\newblock \emph{arXiv preprint arXiv:2301.11100}, 2023.
+
+\bibitem[Hu et~al.(2024)Hu, Lai, Chen, Xiao, Lin, Yu, Zhang, and Wang]{hu2024towards}
+Lijie Hu, Songning Lai, Wenshuo Chen, Hongru Xiao, Hongbin Lin, Lu~Yu, Jingfeng Zhang, and Di~Wang.
+\newblock Towards multi-dimensional explanation alignment for medical classification.
+\newblock \emph{Advances in Neural Information Processing Systems}, 37:\penalty0 129640--129671, 2024.
+
+\bibitem[Huang \& Huang(2024)Huang and Huang]{huangmodel}
+Xinyi Huang and Long-Kai Huang.
+\newblock Model editing for clip with unknown spurious correlations in visual encoder.
+\newblock \emph{openreview}, 2024.
+
+\bibitem[Kalibhat et~al.(2023)Kalibhat, Bhardwaj, Bruss, Firooz, Sanjabi, and Feizi]{kalibhat2023identifying}
+Neha Kalibhat, Shweta Bhardwaj, C.~Bayan Bruss, Hamed Firooz, Maziar Sanjabi, and Soheil Feizi.
+\newblock Identifying interpretable subspaces in image representations.
+\newblock In \emph{International Conference on Machine Learning}, pp.\  15623--15638, 2023.
+
+\bibitem[Kazmierczak et~al.(2024)Kazmierczak, Berthier, Frehse, and Franchi]{kazmierczak2024clip}
+R{\'e}mi Kazmierczak, Elo{\"\i}se Berthier, Goran Frehse, and Gianni Franchi.
+\newblock {CLIP-QDA}: An explainable concept bottleneck model.
+\newblock \emph{Transactions on Machine Learning Research Journal}, 2024.
+
+\bibitem[Kazmierczak et~al.(2025)Kazmierczak, Berthier, Frehse, and Franchi]{kazmierczak2025explainability}
+R{\'e}mi Kazmierczak, Elo{\"\i}se Berthier, Goran Frehse, and Gianni Franchi.
+\newblock Explainability and vision foundation models: A survey.
+\newblock \emph{Information Fusion}, 122:\penalty0 103184, 2025.
+
+\bibitem[Kim et~al.(2023)Kim, Kim, Choi, and Kim]{kim2023concept}
+Injae Kim, Jongha Kim, Joonmyung Choi, and Hyunwoo~J Kim.
+\newblock Concept bottleneck with visual concept filtering for explainable medical image classification.
+\newblock In \emph{International Conference on Medical Image Computing and Computer-Assisted Intervention}, pp.\  225--233. Springer, 2023.
+
+\bibitem[Koh et~al.(2020)Koh, Nguyen, Tang, Mussmann, Pierson, Kim, and Liang]{koh2020concept}
+Pang~Wei Koh, Thao Nguyen, Yew~Siang Tang, Stephen Mussmann, Emma Pierson, Been Kim, and Percy Liang.
+\newblock Concept bottleneck models.
+\newblock In \emph{International Conference on Machine Learning}, pp.\  5338--5348, 2020.
+
+\bibitem[Lamas et~al.(2021)Lamas, Tabik, Cruz, Montes, Martinez-Sevilla, Cruz, and Herrera]{lamas2021monumai}
+Alberto Lamas, Siham Tabik, Policarpo Cruz, Rosana Montes, {\'A}lvaro Martinez-Sevilla, Teresa Cruz, and Francisco Herrera.
+\newblock Monumai: Dataset, deep learning pipeline and citizen science based app for monumental heritage taxonomy and classification.
+\newblock \emph{Neurocomputing}, 420:\penalty0 266--280, 2021.
+
+\bibitem[Li et~al.(2024)Li, Liu, Dong, Qin, and Hu]{li2024partImageNet++}
+Xiao Li, Yining Liu, Na~Dong, Sitian Qin, and Xiaolin Hu.
+\newblock Partimagenet++ dataset: Scaling up part-based models for robust recognition.
+\newblock In \emph{European Conference on Computer Vision}, pp.\  396--414, 2024.
+
+\bibitem[Liu et~al.(2023)Liu, Hu, Zhang, Gai, Feng, and Liu]{liu2023chatgpt}
+Jiaxiang Liu, Tianxiang Hu, Yan Zhang, Xiaotang Gai, Yang Feng, and Zuozhu Liu.
+\newblock A chatgpt aided explainable framework for zero-shot medical image diagnosis.
+\newblock \emph{arXiv preprint arXiv:2307.01981}, 2023.
+
+\bibitem[Liu et~al.(2024{\natexlab{a}})Liu, Zeng, Ren, Li, Zhang, Yang, Jiang, Li, Yang, Su, et~al.]{liu2024grounding}
+Shilong Liu, Zhaoyang Zeng, Tianhe Ren, Feng Li, Hao Zhang, Jie Yang, Qing Jiang, Chunyuan Li, Jianwei Yang, Hang Su, et~al.
+\newblock Grounding dino: Marrying dino with grounded pre-training for open-set object detection.
+\newblock In \emph{European conference on computer vision}, pp.\  38--55. Springer, 2024{\natexlab{a}}.
+
+\bibitem[Liu et~al.(2024{\natexlab{b}})Liu, Ji, Sun, Wu, and Zhou]{liu2024investigating}
+Yufang Liu, Tao Ji, Changzhi Sun, Yuanbin Wu, and Aimin Zhou.
+\newblock Investigating and mitigating object hallucinations in pretrained vision-language (clip) models.
+\newblock \emph{arXiv preprint arXiv:2410.03176}, 2024{\natexlab{b}}.
+
+\bibitem[Lundberg \& Lee(2017)Lundberg and Lee]{lundberg2017unified}
+Scott~M Lundberg and Su-In Lee.
+\newblock A unified approach to interpreting model predictions.
+\newblock \emph{Advances in neural information processing systems}, 30, 2017.
+
+\bibitem[Moayeri et~al.(2023{\natexlab{a}})Moayeri, Rezaei, Sanjabi, and Feizi]{moayeri2023text}
+Mazda Moayeri, Keivan Rezaei, Maziar Sanjabi, and Soheil Feizi.
+\newblock Text-to-concept (and back) via cross-model alignment.
+\newblock In \emph{International Conference on Machine Learning}, pp.\  25037--25060. PMLR, 2023{\natexlab{a}}.
+
+\bibitem[Moayeri et~al.(2023{\natexlab{b}})Moayeri, Wang, Singla, and Feizi]{moayeri2023spuriosity}
+Mazda Moayeri, Wenxiao Wang, Sahil Singla, and Soheil Feizi.
+\newblock Spuriosity rankings: sorting data to measure and mitigate biases.
+\newblock \emph{Advances in Neural Information Processing Systems}, 36:\penalty0 41572--41600, 2023{\natexlab{b}}.
+
+\bibitem[Norrenbrock et~al.(2024)Norrenbrock, Rudolph, and Rosenhahn]{norrenbrock2024q}
+Thomas Norrenbrock, Marco Rudolph, and Bodo Rosenhahn.
+\newblock Q-senn: Quantized self-explaining neural networks.
+\newblock In \emph{Proceedings of the AAAI Conference on Artificial Intelligence}, volume~38, pp.\  21482--21491, 2024.
+
+\bibitem[Oh \& Hwang(2025)Oh and Hwang]{oh2025vision}
+Hongseok Oh and Wonseok Hwang.
+\newblock Vision-encoders (already) know what they see: Mitigating object hallucination via simple fine-grained clipscore.
+\newblock \emph{arXiv preprint arXiv:2502.20034}, 2025.
+
+\bibitem[Oikarinen et~al.(2023)Oikarinen, Das, Nguyen, and Weng]{oikarinen2023label}
+Tuomas Oikarinen, Subhro Das, Lam~M Nguyen, and Tsui-Wei Weng.
+\newblock Label-free concept bottleneck models.
+\newblock \emph{arXiv preprint arXiv:2304.06129}, 2023.
+
+\bibitem[Olah et~al.(2017)Olah, Mordvintsev, and Schubert]{olah2017feature}
+Chris Olah, Alexander Mordvintsev, and Ludwig Schubert.
+\newblock Feature visualization.
+\newblock \emph{Distill}, 2\penalty0 (11):\penalty0 e7, 2017.
+
+\bibitem[Panousis et~al.(2024)Panousis, Ienco, and Marcos]{panousis2024coarse}
+Konstantinos~P Panousis, Dino Ienco, and Diego Marcos.
+\newblock Coarse-to-fine concept bottleneck models.
+\newblock \emph{Advances in Neural Information Processing Systems}, 37:\penalty0 105171--105199, 2024.
+
+\bibitem[Panousis et~al.(2023)Panousis, Ienco, and Marcos]{panousis2023sparse}
+Konstantinos~Panagiotis Panousis, Dino Ienco, and Diego Marcos.
+\newblock Sparse linear concept discovery models.
+\newblock In \emph{Proceedings of the ieee/cvf international conference on computer vision}, pp.\  2767--2771, 2023.
+
+\bibitem[Patr{\'\i}cio et~al.(2024)Patr{\'\i}cio, Teixeira, and Neves]{patricio2024towards}
+Cristiano Patr{\'\i}cio, Luis~F Teixeira, and Jo{\~a}o~C Neves.
+\newblock Towards concept-based interpretability of skin lesion diagnosis using vision-language models.
+\newblock In \emph{2024 IEEE international symposium on biomedical imaging (ISBI)}, pp.\  1--5. IEEE, 2024.
+
+\bibitem[Petsiuk et~al.(2018)Petsiuk, Das, and Saenko]{petsiuk2018rise}
+Vitali Petsiuk, Abir Das, and Kate Saenko.
+\newblock Rise: Randomized input sampling for explanation of black-box models.
+\newblock \emph{arXiv preprint arXiv:1806.07421}, 2018.
+
+\bibitem[Ren et~al.(2023)Ren, Su, and Liu]{ren2023chatgpt}
+Zhiyuan Ren, Yiyang Su, and Xiaoming Liu.
+\newblock Chatgpt-powered hierarchical comparisons for image classification.
+\newblock \emph{Advances in neural information processing systems}, 36:\penalty0 69706--69718, 2023.
+
+\bibitem[Ribeiro et~al.(2016)Ribeiro, Singh, and Guestrin]{ribeiro2016should}
+Marco~Tulio Ribeiro, Sameer Singh, and Carlos Guestrin.
+\newblock " why should i trust you?" explaining the predictions of any classifier.
+\newblock In \emph{Proceedings of the 22nd ACM SIGKDD international conference on knowledge discovery and data mining}, pp.\  1135--1144, 2016.
+
+\bibitem[Schrodi et~al.(2024)Schrodi, Hoffmann, Argus, Fischer, and Brox]{schrodi2024two}
+Simon Schrodi, David~T Hoffmann, Max Argus, Volker Fischer, and Thomas Brox.
+\newblock Two effects, one trigger: On the modality gap, object bias, and information imbalance in contrastive vision-language models.
+\newblock \emph{arXiv preprint arXiv:2404.07983}, 2024.
+
+\bibitem[Selvaraju et~al.(2017)Selvaraju, Cogswell, Das, Vedantam, Parikh, and Batra]{selvaraju2017grad}
+Ramprasaath~R Selvaraju, Michael Cogswell, Abhishek Das, Ramakrishna Vedantam, Devi Parikh, and Dhruv Batra.
+\newblock Grad-cam: Visual explanations from deep networks via gradient-based localization.
+\newblock In \emph{Proceedings of the IEEE International Conference on Computer Vision}, pp.\  618--626, 2017.
+
+\bibitem[Shaham et~al.(2024)Shaham, Schwettmann, Wang, Rajaram, Hernandez, Andreas, and Torralba]{shaham2024multimodal}
+Tamar~Rott Shaham, Sarah Schwettmann, Franklin Wang, Achyuta Rajaram, Evan Hernandez, Jacob Andreas, and Antonio Torralba.
+\newblock A multimodal automated interpretability agent.
+\newblock In \emph{Forty-first International Conference on Machine Learning}, 2024.
+
+\bibitem[Srinivas \& Fleuret(2019)Srinivas and Fleuret]{srinivas2019full}
+Suraj Srinivas and Fran{\c{c}}ois Fleuret.
+\newblock Full-gradient representation for neural network visualization.
+\newblock \emph{Advances in neural information processing systems}, 32, 2019.
+
+\bibitem[Srivastava et~al.(2024)Srivastava, Yan, and Weng]{srivastava2024vlg}
+Divyansh Srivastava, Ge~Yan, and Lily Weng.
+\newblock Vlg-cbm: Training concept bottleneck models with vision-language guidance.
+\newblock \emph{Advances in Neural Information Processing Systems}, 37:\penalty0 79057--79094, 2024.
+
+\bibitem[Thakur et~al.(2022)Thakur, Ilievski, Sandlin, Sourati, Luceri, Tommasini, and Mermoud]{thakur2022multimodal}
+Abhinav~Kumar Thakur, Filip Ilievski, H{\^o}ng-{\^A}n Sandlin, Zhivar Sourati, Luca Luceri, Riccardo Tommasini, and Alain Mermoud.
+\newblock Multimodal and explainable internet meme classification.
+\newblock \emph{arXiv preprint arXiv:2212.05612}, 2022.
+
+\bibitem[Vandenhirtz et~al.(2024)Vandenhirtz, Laguna, Marcinkevi{\v{c}}s, and Vogt]{vandenhirtz2024stochastic}
+Moritz Vandenhirtz, Sonia Laguna, Ri{\v{c}}ards Marcinkevi{\v{c}}s, and Julia Vogt.
+\newblock Stochastic concept bottleneck models.
+\newblock \emph{Advances in Neural Information Processing Systems}, 37:\penalty0 51787--51810, 2024.
+
+\bibitem[Voita et~al.(2019)Voita, Talbot, Moiseev, Sennrich, and Titov]{voita2019analyzing}
+Elena Voita, David Talbot, Fedor Moiseev, Rico Sennrich, and Ivan Titov.
+\newblock Analyzing multi-head self-attention: Specialized heads do the heavy lifting, the rest can be pruned.
+\newblock In \emph{Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics}, pp.\  5797--5808, 2019.
+
+\bibitem[Wah et~al.(2011)Wah, Branson, Welinder, Perona, and Belongie]{WahCUB_200_2011}
+C.~Wah, S.~Branson, P.~Welinder, P.~Perona, and S.~Belongie.
+\newblock Caltech-ucsd birds-200-2011.
+\newblock Technical Report CNS-TR-2011-001, California Institute of Technology, 2011.
+
+\bibitem[Wang et~al.(2024)Wang, Zhao, Do, Agarwal, Lee, and Sun]{wang2024vamos}
+Shijie Wang, Qi~Zhao, Minh~Quan Do, Nakul Agarwal, Kwonjoon Lee, and Chen Sun.
+\newblock Vamos: Versatile action models for video understanding.
+\newblock In \emph{European Conference on Computer Vision}, pp.\  142--160. Springer, 2024.
+
+\bibitem[Wu et~al.(2025)Wu, Liu, Yang, Yao, Yang, Shi, Yang, Li, Liu, Yin, et~al.]{wu2025concept}
+Yifan Wu, Yang Liu, Yue Yang, Michael~S Yao, Wenli Yang, Xuehui Shi, Lihong Yang, Dongjun Li, Yueming Liu, Shiyi Yin, et~al.
+\newblock A concept-based interpretable model for the diagnosis of choroid neoplasias using multimodal data.
+\newblock \emph{Nature communications}, 16\penalty0 (1):\penalty0 3504, 2025.
+
+\bibitem[Xu et~al.(2023)Xu, Lan, Xie, Chen, and Lu]{xu2023retrieval}
+Jiaqi Xu, Cuiling Lan, Wenxuan Xie, Xuejin Chen, and Yan Lu.
+\newblock Retrieval-based video language model for efficient long video question answering.
+\newblock \emph{arXiv preprint arXiv:2312.04931}, 2023.
+
+\bibitem[Yan et~al.(2023{\natexlab{a}})Yan, Wang, Zhong, Dong, He, Lu, Wang, Shang, and McAuley]{yan2023learning}
+An~Yan, Yu~Wang, Yiwu Zhong, Chengyu Dong, Zexue He, Yujie Lu, William~Yang Wang, Jingbo Shang, and Julian McAuley.
+\newblock Learning concise and descriptive attributes for visual recognition.
+\newblock In \emph{Proceedings of the IEEE/CVF International Conference on Computer Vision}, pp.\  3090--3100, 2023{\natexlab{a}}.
+
+\bibitem[Yan et~al.(2023{\natexlab{b}})Yan, Wang, Zhong, He, Karypis, Wang, Dong, Gentili, Hsu, Shang, et~al.]{yan2023robust}
+An~Yan, Yu~Wang, Yiwu Zhong, Zexue He, Petros Karypis, Zihan Wang, Chengyu Dong, Amilcare Gentili, Chun-Nan Hsu, Jingbo Shang, et~al.
+\newblock Robust and interpretable medical image classifiers via concept bottleneck models.
+\newblock \emph{arXiv preprint arXiv:2310.03182}, 2023{\natexlab{b}}.
+
+\bibitem[Yang et~al.(2023)Yang, Panagopoulou, Zhou, Jin, Callison-Burch, and Yatskar]{yang2023language}
+Yue Yang, Artemis Panagopoulou, Shenghao Zhou, Daniel Jin, Chris Callison-Burch, and Mark Yatskar.
+\newblock Language in a bottle: Language model guided concept bottlenecks for interpretable image classification.
+\newblock In \emph{Proceedings of the IEEE/CVF conference on computer vision and pattern recognition}, pp.\  19187--19197, 2023.
+
+\bibitem[Yeo et~al.(2025)Yeo, Mao, Abdar, Cambria, and Satapathy]{yeo2025debiasing}
+Wei~Jie Yeo, Rui Mao, Moloud Abdar, Erik Cambria, and Ranjan Satapathy.
+\newblock Debiasing clip: Interpreting and correcting bias in attention heads.
+\newblock \emph{arXiv preprint arXiv:2505.17425}, 2025.
+
+\bibitem[Yow et~al.(2024)Yow, Garg, Ramanathan, Ang, et~al.]{yow2024extract}
+J~Yow, Neha~Priyadarshini Garg, Manoj Ramanathan, Wei~Tech Ang, et~al.
+\newblock Extract--explainable trajectory corrections from language inputs using textual description of features.
+\newblock \emph{arXiv preprint arXiv:2401.03701}, 2024.
+
+\bibitem[Zhang et~al.(2024)Zhang, Colman, Shahriyari, Bharaj, et~al.]{zhang2024common}
+Miao Zhang, Ben Colman, Ali Shahriyari, Gaurav Bharaj, et~al.
+\newblock Common-sense bias discovery and mitigation for classification tasks.
+\newblock \emph{arXiv preprint arXiv:2401.13213}, 2024.
+
+\bibitem[Zhou et~al.(2016)Zhou, Khosla, Lapedriza, Oliva, and Torralba]{zhou2016learning}
+Bolei Zhou, Aditya Khosla, Agata Lapedriza, Aude Oliva, and Antonio Torralba.
+\newblock Learning deep features for discriminative localization.
+\newblock In \emph{Proceedings of the IEEE conference on computer vision and pattern recognition}, pp.\  2921--2929, 2016.
+
+\bibitem[Zhou et~al.(2022)Zhou, Yang, Loy, and Liu]{zhou2022conditional}
+Kaiyang Zhou, Jingkang Yang, Chen~Change Loy, and Ziwei Liu.
+\newblock Conditional prompt learning for vision-language models.
+\newblock In \emph{Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition}, pp.\  16816--16825, 2022.
+
+\end{thebibliography}
