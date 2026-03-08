@@ -19,8 +19,11 @@ ALPHA = 5.0
 DEVICE = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
 MODEL_NAME = "openai/clip-vit-base-patch16"
 
-print(f"Loading CLIP model on {DEVICE}...")
-model = CLIPModel.from_pretrained(MODEL_NAME, attn_implementation="eager").to(DEVICE)
+print(f"Loading model {MODEL_NAME} on {DEVICE}...")
+try:
+    model = CLIPModel.from_pretrained(MODEL_NAME, attn_implementation="eager").to(DEVICE)
+except TypeError:
+    model = CLIPModel.from_pretrained(MODEL_NAME).to(DEVICE)
 processor = CLIPProcessor.from_pretrained(MODEL_NAME)
 model.eval()
 

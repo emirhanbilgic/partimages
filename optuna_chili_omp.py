@@ -361,7 +361,12 @@ def main():
     images_dir = os.path.join(args.dataset_dir, 'images')
 
     print(f"Loading model {args.model_name} on {DEVICE}...")
-    model = CLIPModel.from_pretrained(args.model_name, attn_implementation="eager").to(DEVICE)
+    try:
+        model = CLIPModel.from_pretrained(args.model_name, attn_implementation="eager").to(DEVICE)
+    except TypeError:
+        # Fallback for older transformers versions where "eager" was the default and the argument didn't exist
+        model = CLIPModel.from_pretrained(args.model_name).to(DEVICE)
+        
     processor = CLIPProcessor.from_pretrained(args.model_name)
     model.eval()
 
