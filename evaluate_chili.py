@@ -7,7 +7,8 @@ import cv2
 from tqdm import tqdm
 from PIL import Image
 from sklearn.metrics import average_precision_score, jaccard_score
-from transformers import CLIPModel, CLIPProcessor
+import torch.nn.functional as F
+import open_clip
 from pycocotools.coco import COCO
 
 # Suppress warnings
@@ -17,72 +18,80 @@ warnings.filterwarnings("ignore")
 # Hyperparameters
 ALPHA = 5.0
 DEVICE = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
-MODEL_NAME = "openai/clip-vit-base-patch16"
+MODEL_NAME = "ViT-B-16"
+PRETRAINED = "laion2b_s34b_b88k"
 
-print(f"Loading model {MODEL_NAME} on {DEVICE}...")
-try:
-    model = CLIPModel.from_pretrained(MODEL_NAME, attn_implementation="eager").to(DEVICE)
-except TypeError:
-    model = CLIPModel.from_pretrained(MODEL_NAME).to(DEVICE)
-processor = CLIPProcessor.from_pretrained(MODEL_NAME)
+print(f"Loading model {MODEL_NAME} ({PRETRAINED}) on {DEVICE}...")
+model, _, preprocess = open_clip.create_model_and_transforms(MODEL_NAME, pretrained=PRETRAINED, device=DEVICE)
+tokenizer = open_clip.get_tokenizer(MODEL_NAME)
 model.eval()
 
 def extract_chili_activations(image, text_query):
-    inputs = processor(text=[text_query], images=image, return_tensors="pt", padding=True)
-    inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
-    
+    tok = tokenizer([text_query]).to(DEVICE)
+    img_tensor = preprocess(image).unsqueeze(0).to(DEVICE)
+
     with torch.no_grad():
-        outputs = model(**inputs, output_attentions=True, output_hidden_states=True)
-        text_embeds = model.get_text_features(input_ids=inputs["input_ids"], attention_mask=inputs["attention_mask"])
-        text_embeds = text_embeds / text_embeds.norm(dim=-1, keepdim=True)
-        
-    vision_model = model.vision_model
-    hidden_states = outputs.vision_model_output.hidden_states 
-    attentions = outputs.vision_model_output.attentions 
-    
-    L = len(vision_model.encoder.layers)
-    num_heads = vision_model.config.num_attention_heads
-    head_dim = vision_model.config.hidden_size // num_heads
-    
-    visual_projection = model.visual_projection
-    text_emb = text_embeds[0] # [512]
-    
-    # Store A_{l,h} -> shape [L, H, 14, 14]
-    # CLIP patch16 with 224x224 image has 14x14 grid
-    A_lh = torch.zeros((L, num_heads, 14, 14), device=DEVICE)
-    
-    for l in range(L):
-        layer = vision_model.encoder.layers[l]
-        z_prev = hidden_states[l] 
-        
-        z_norm = layer.layer_norm1(z_prev)
-        v = layer.self_attn.v_proj(z_norm)
-        bsz, tgt_len, embed_dim = v.size()
-        v_heads = v.view(bsz, tgt_len, num_heads, head_dim).transpose(1, 2) 
-        
-        attn = attentions[l]
-        alpha_cls = attn[0, :, 0, 1:] # [12, 196] (skip CLS self-attention)
-        
-        W_o = layer.self_attn.out_proj.weight 
-        
-        for h in range(num_heads):
-            # [196, 64] * [196, 1] = [196, 64]
-            v_h = v_heads[0, h, 1:] * alpha_cls[h].unsqueeze(-1)
-            
-            padded_v = torch.zeros(tgt_len - 1, embed_dim, device=v.device, dtype=v.dtype)
-            padded_v[:, h*head_dim : (h+1)*head_dim] = v_h
-            
-            # W_o applies to the padded v -> [196, 768]
-            msa_out = torch.matmul(padded_v, W_o.t())
-            
-            # P -> [196, 512]
-            m = torch.matmul(msa_out, visual_projection.weight.t())
-            
-            # A_i = <m, M_text> -> [196]
-            A = torch.matmul(m, text_emb)
-            
-            A_lh[l, h] = A.view(14, 14)
-            
+        text_embeds = model.encode_text(tok, normalize=True)
+        text_emb = text_embeds[0]  # [proj_dim]
+
+        visual = model.visual
+
+        # Replicate vision forward pass to capture per-layer hidden states
+        x = visual.conv1(img_tensor)
+        x = x.reshape(x.shape[0], x.shape[1], -1).permute(0, 2, 1)
+
+        x = torch.cat([
+            visual.class_embedding.view(1, 1, -1).expand(x.shape[0], -1, -1).to(x.dtype),
+            x,
+        ], dim=1)
+        x = x + visual.positional_embedding.to(x.dtype)
+
+        if hasattr(visual, 'patch_dropout'):
+            x = visual.patch_dropout(x)
+        x = visual.ln_pre(x)
+        x = x.permute(1, 0, 2)  # NLD -> LND  [seq_len, batch, embed_dim]
+
+        num_layers = len(visual.transformer.resblocks)
+        embed_dim = x.shape[-1]
+        num_heads = visual.transformer.resblocks[0].attn.num_heads
+        head_dim = embed_dim // num_heads
+        proj = visual.proj  # [embed_dim, proj_dim]
+
+        A_lh = torch.zeros((num_layers, num_heads, 14, 14), device=DEVICE)
+
+        for l, block in enumerate(visual.transformer.resblocks):
+            z_norm = block.ln_1(x)  # [seq_len, batch, embed_dim]
+            seq_len = z_norm.shape[0]
+
+            # QKV from fused in_proj
+            qkv = F.linear(z_norm, block.attn.in_proj_weight, block.attn.in_proj_bias)
+            q, k, v = qkv.chunk(3, dim=-1)
+
+            q = q.view(seq_len, -1, num_heads, head_dim).permute(1, 2, 0, 3)
+            k = k.view(seq_len, -1, num_heads, head_dim).permute(1, 2, 0, 3)
+            v_heads = v.view(seq_len, -1, num_heads, head_dim).permute(1, 2, 0, 3)
+
+            attn_weights = torch.matmul(q, k.transpose(-2, -1)) * (head_dim ** -0.5)
+            attn_weights = torch.softmax(attn_weights, dim=-1)
+
+            alpha_cls = attn_weights[0, :, 0, 1:]  # [num_heads, num_patches]
+
+            W_o = block.attn.out_proj.weight  # [embed_dim, embed_dim]
+
+            for h in range(num_heads):
+                v_h = v_heads[0, h, 1:] * alpha_cls[h].unsqueeze(-1)
+
+                padded_v = torch.zeros(seq_len - 1, embed_dim, device=x.device, dtype=x.dtype)
+                padded_v[:, h * head_dim:(h + 1) * head_dim] = v_h
+
+                msa_out = torch.matmul(padded_v, W_o.t())
+                m = torch.matmul(msa_out, proj)  # [num_patches, proj_dim]
+                A = torch.matmul(m, text_emb)
+
+                A_lh[l, h] = A.view(14, 14)
+
+            x = block(x)
+
     return A_lh.detach().cpu().numpy()
 
 

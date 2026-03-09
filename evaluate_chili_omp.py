@@ -14,7 +14,7 @@ import cv2
 from tqdm import tqdm
 from PIL import Image
 from sklearn.metrics import average_precision_score, jaccard_score
-from transformers import CLIPModel, CLIPProcessor
+import open_clip
 from pycocotools.coco import COCO
 
 def omp_sparse_residual(x_1x: torch.Tensor, D: torch.Tensor, max_atoms: int = 8, tol: float = 1e-6, return_indices: bool = False):
@@ -90,82 +90,80 @@ warnings.filterwarnings("ignore")
 # Hyperparameters
 ALPHA = 5.0
 DEVICE = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
-MODEL_NAME = "openai/clip-vit-base-patch16"
+MODEL_NAME = "ViT-B-16"
+PRETRAINED = "laion2b_s34b_b88k"
 
-print(f"Loading model {MODEL_NAME} on {DEVICE}...")
-try:
-    model = CLIPModel.from_pretrained(MODEL_NAME, attn_implementation="eager").to(DEVICE)
-except TypeError:
-    model = CLIPModel.from_pretrained(MODEL_NAME).to(DEVICE)
-processor = CLIPProcessor.from_pretrained(MODEL_NAME)
+print(f"Loading model {MODEL_NAME} ({PRETRAINED}) on {DEVICE}...")
+model, _, preprocess = open_clip.create_model_and_transforms(MODEL_NAME, pretrained=PRETRAINED, device=DEVICE)
+tokenizer = open_clip.get_tokenizer(MODEL_NAME)
 model.eval()
 
 def extract_chili_activations(image, text_query=None, text_emb=None):
     if text_emb is None:
-        inputs = processor(text=[text_query], images=image, return_tensors="pt", padding=True)
-        inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
-        
+        tok = tokenizer([text_query]).to(DEVICE)
         with torch.no_grad():
-            outputs = model(**inputs, output_attentions=True, output_hidden_states=True)
-            text_embeds = model.get_text_features(input_ids=inputs["input_ids"], attention_mask=inputs["attention_mask"])
-            text_embeds = text_embeds / text_embeds.norm(dim=-1, keepdim=True)
+            text_embeds = model.encode_text(tok, normalize=True)
             text_emb = text_embeds[0]
-            
-        vision_model = model.vision_model
-        hidden_states = outputs.vision_model_output.hidden_states 
-        attentions = outputs.vision_model_output.attentions 
-    else:
-        inputs = processor(images=image, return_tensors="pt")
-        inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
-        with torch.no_grad():
-            vision_outputs = model.vision_model(pixel_values=inputs["pixel_values"], output_attentions=True, output_hidden_states=True)
-            
-        vision_model = model.vision_model
-        hidden_states = vision_outputs.hidden_states 
-        attentions = vision_outputs.attentions 
-    
-    L = len(vision_model.encoder.layers)
-    num_heads = vision_model.config.num_attention_heads
-    head_dim = vision_model.config.hidden_size // num_heads
-    
-    visual_projection = model.visual_projection
-    
-    # Store A_{l,h} -> shape [L, H, 14, 14]
-    # CLIP patch16 with 224x224 image has 14x14 grid
-    A_lh = torch.zeros((L, num_heads, 14, 14), device=DEVICE)
-    
-    for l in range(L):
-        layer = vision_model.encoder.layers[l]
-        z_prev = hidden_states[l] 
-        
-        z_norm = layer.layer_norm1(z_prev)
-        v = layer.self_attn.v_proj(z_norm)
-        bsz, tgt_len, embed_dim = v.size()
-        v_heads = v.view(bsz, tgt_len, num_heads, head_dim).transpose(1, 2) 
-        
-        attn = attentions[l]
-        alpha_cls = attn[0, :, 0, 1:] # [12, 196] (skip CLS self-attention)
-        
-        W_o = layer.self_attn.out_proj.weight 
-        
-        for h in range(num_heads):
-            # [196, 64] * [196, 1] = [196, 64]
-            v_h = v_heads[0, h, 1:] * alpha_cls[h].unsqueeze(-1)
-            
-            padded_v = torch.zeros(tgt_len - 1, embed_dim, device=v.device, dtype=v.dtype)
-            padded_v[:, h*head_dim : (h+1)*head_dim] = v_h
-            
-            # W_o applies to the padded v -> [196, 768]
-            msa_out = torch.matmul(padded_v, W_o.t())
-            
-            # P -> [196, 512]
-            m = torch.matmul(msa_out, visual_projection.weight.t())
-            
-            # A_i = <m, M_text> -> [196]
-            A = torch.matmul(m, text_emb.to(DEVICE))
-            
-            A_lh[l, h] = A.view(14, 14)
-            
+
+    img_tensor = preprocess(image).unsqueeze(0).to(DEVICE)
+
+    with torch.no_grad():
+        visual = model.visual
+
+        x = visual.conv1(img_tensor)
+        x = x.reshape(x.shape[0], x.shape[1], -1).permute(0, 2, 1)
+
+        x = torch.cat([
+            visual.class_embedding.view(1, 1, -1).expand(x.shape[0], -1, -1).to(x.dtype),
+            x,
+        ], dim=1)
+        x = x + visual.positional_embedding.to(x.dtype)
+
+        if hasattr(visual, 'patch_dropout'):
+            x = visual.patch_dropout(x)
+        x = visual.ln_pre(x)
+        x = x.permute(1, 0, 2)  # NLD -> LND
+
+        num_layers = len(visual.transformer.resblocks)
+        embed_dim = x.shape[-1]
+        num_heads = visual.transformer.resblocks[0].attn.num_heads
+        head_dim = embed_dim // num_heads
+        proj = visual.proj
+
+        A_lh = torch.zeros((num_layers, num_heads, 14, 14), device=DEVICE)
+
+        for l, block in enumerate(visual.transformer.resblocks):
+            z_norm = block.ln_1(x)
+            seq_len = z_norm.shape[0]
+
+            qkv = F.linear(z_norm, block.attn.in_proj_weight, block.attn.in_proj_bias)
+            q, k, v = qkv.chunk(3, dim=-1)
+
+            q = q.view(seq_len, -1, num_heads, head_dim).permute(1, 2, 0, 3)
+            k = k.view(seq_len, -1, num_heads, head_dim).permute(1, 2, 0, 3)
+            v_heads = v.view(seq_len, -1, num_heads, head_dim).permute(1, 2, 0, 3)
+
+            attn_weights = torch.matmul(q, k.transpose(-2, -1)) * (head_dim ** -0.5)
+            attn_weights = torch.softmax(attn_weights, dim=-1)
+
+            alpha_cls = attn_weights[0, :, 0, 1:]
+
+            W_o = block.attn.out_proj.weight
+
+            for h in range(num_heads):
+                v_h = v_heads[0, h, 1:] * alpha_cls[h].unsqueeze(-1)
+
+                padded_v = torch.zeros(seq_len - 1, embed_dim, device=x.device, dtype=x.dtype)
+                padded_v[:, h * head_dim:(h + 1) * head_dim] = v_h
+
+                msa_out = torch.matmul(padded_v, W_o.t())
+                m = torch.matmul(msa_out, proj)
+                A = torch.matmul(m, text_emb.to(DEVICE))
+
+                A_lh[l, h] = A.view(14, 14)
+
+            x = block(x)
+
     return A_lh.detach().cpu().numpy()
 
 
@@ -339,6 +337,7 @@ def main():
     parser.add_argument('--limit', type=int, default=None, help="Run on a small subset of N images")
     parser.add_argument('--visualize', type=int, default=0, help="Number of visualizations to save")
     parser.add_argument('--image_size', type=int, default=224, help="Fixed image size to evaluate at (default 224)")
+    parser.add_argument('--sparse_threshold', type=float, default=0.85, help='Threshold for OMP method (baseline always uses 0.5)')
     parser.add_argument('--max_dict_cos_sim', type=float, default=0.65)
     parser.add_argument('--max_atoms', type=int, default=3, help='Maximum number of atoms for OMP')
     args = parser.parse_args()
@@ -389,11 +388,9 @@ def main():
         cat_names = [cat['name'] for cat in categories]
         prompts = [f"a photo of a {name}" for name in cat_names]
         
-        text_inputs = processor(text=prompts, return_tensors="pt", padding=True)
-        text_inputs = {k: v.to(DEVICE) for k, v in text_inputs.items()}
+        tok = tokenizer(prompts).to(DEVICE)
         with torch.no_grad():
-            text_embs = model.get_text_features(**text_inputs)
-            text_embs = text_embs / text_embs.norm(dim=-1, keepdim=True)
+            text_embs = model.encode_text(tok, normalize=True)
             
         for i, target_cat in enumerate(categories):
             target_emb = text_embs[i:i+1]
@@ -401,14 +398,15 @@ def main():
             # Dictionary is everything ELSE in the image
             dictionary_embs = torch.cat([text_embs[:i], text_embs[i+1:]], dim=0)
             
+            pre_filter_count = dictionary_embs.shape[0]
             if dictionary_embs.shape[0] > 0 and 0.0 < args.max_dict_cos_sim < 1.0:
                 sim = (dictionary_embs @ target_emb.t()).squeeze(-1).abs()
                 keep = sim < args.max_dict_cos_sim
                 dictionary_embs = dictionary_embs[keep]
-                
+
             num_negativas = dictionary_embs.shape[0]
             atoms = min(args.max_atoms, num_negativas)
-            
+
             sparse_emb = omp_sparse_residual(target_emb, dictionary_embs, max_atoms=atoms)
             
             gt_mask = get_binary_mask(coco, img_id, target_cat['id'], (args.image_size, args.image_size))
@@ -434,9 +432,10 @@ def main():
                     A_obj_norm = (A_obj - A_obj.min()) / (A_obj.max() - A_obj.min())
                 else:
                     A_obj_norm = A_obj
-                    
+
+                current_threshold = 0.5 if method == 'baseline' else args.sparse_threshold
                 try:
-                    inter, union, c_p, l_p, ap = compute_metrics(A_obj_norm, gt_mask, 0.5)
+                    inter, union, c_p, l_p, ap = compute_metrics(A_obj_norm, gt_mask, current_threshold)
                     accumulators[method]['total_inter'] += inter
                     accumulators[method]['total_union'] += union
                     accumulators[method]['total_correct'] += c_p
@@ -449,6 +448,7 @@ def main():
                 pass
                 
     print(f"\n--- Final Results (CHILI + OMP) ---")
+    print(f"Settings: max_dict_cos_sim={args.max_dict_cos_sim}, max_atoms={args.max_atoms}, sparse_threshold={args.sparse_threshold}")
     for method in eval_methods:
         accums = accumulators[method]
         if len(accums['all_aps']) > 0:
@@ -457,7 +457,8 @@ def main():
             acc = 100.0 * accums['total_correct'] / (accums['total_labeled'] + 1e-10)
             map_score = np.mean(accums['all_aps']) * 100 if accums['all_aps'] else 0.0
 
-            print(f"\n{method.upper()}:")
+            method_threshold = 0.5 if method == 'baseline' else args.sparse_threshold
+            print(f"\n{method.upper()} (threshold={method_threshold}):")
             print(f"mIoU: {miou:.2f}")
             print(f"Pixel Accuracy: {acc:.2f}")
             print(f"mAP: {map_score:.2f}")
