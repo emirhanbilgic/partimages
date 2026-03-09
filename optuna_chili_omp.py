@@ -10,13 +10,6 @@ Tunes:
 Objective: Maximize combined metric on a subset of images (e.g., 50).
 """
 
-import os
-import sys
-
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '.'))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
 import argparse
 import json
 import torch
@@ -26,12 +19,17 @@ import scipy.ndimage as ndimage
 import cv2
 from PIL import Image
 from sklearn.metrics import average_precision_score
-from transformers import CLIPModel, CLIPProcessor
+import open_clip
 from pycocotools.coco import COCO
 import optuna
 
 # Device configuration
 DEVICE = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
+
+# Global variables for model and processor
+model = None
+preprocess = None
+tokenizer = None
 
 # Re-use sparse encoding implementation
 def omp_sparse_residual(x_1x: torch.Tensor, D: torch.Tensor, max_atoms: int = 8, tol: float = 1e-6, return_indices: bool = False):
@@ -148,57 +146,105 @@ def compute_metrics(heatmap_np, gt_mask, thr):
     ap = np.nan_to_num(average_precision_score(t_filtered, p))
     return inter, union, correct_pixels, labeled_pixels, ap
 
-# Core CHILI Functions
-def extract_chili_activations(model, processor, image, text_query=None, text_emb=None):
+# Core CHILI Functions for OpenCLIP
+def extract_chili_activations(model, preprocess, tokenizer, image, text_query=None, text_emb=None):
     if text_emb is None:
-        inputs = processor(text=[text_query], images=image, return_tensors="pt", padding=True)
-        inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
+        text_tokens = tokenizer([text_query]).to(DEVICE)
         with torch.no_grad():
-            outputs = model(**inputs, output_attentions=True, output_hidden_states=True)
-            text_embeds = model.get_text_features(input_ids=inputs["input_ids"], attention_mask=inputs["attention_mask"])
-            text_embeds = text_embeds / text_embeds.norm(dim=-1, keepdim=True)
-            text_emb = text_embeds[0]
-            
-        vision_model = model.vision_model
-        hidden_states = outputs.vision_model_output.hidden_states 
-        attentions = outputs.vision_model_output.attentions 
-    else:
-        inputs = processor(images=image, return_tensors="pt")
-        inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
-        with torch.no_grad():
-            vision_outputs = model.vision_model(pixel_values=inputs["pixel_values"], output_attentions=True, output_hidden_states=True)
-            
-        vision_model = model.vision_model
-        hidden_states = vision_outputs.hidden_states 
-        attentions = vision_outputs.attentions 
+            text_emb = model.encode_text(text_tokens)
+            text_emb = text_emb / text_emb.norm(dim=-1, keepdim=True)
+            text_emb = text_emb[0]
+
+    image_input = preprocess(image).unsqueeze(0).to(DEVICE)
     
-    L = len(vision_model.encoder.layers)
-    num_heads = vision_model.config.num_attention_heads
-    head_dim = vision_model.config.hidden_size // num_heads
-    visual_projection = model.visual_projection
+    layer_hooks = []
+    activations_map = {}
+    attentions_map = {}
+
+    def get_attn_hook(name):
+        def hook(module, input, output):
+            # output of attention is (output, weights) if internal open_clip implementation allows or we reach in.
+            # However, open_clip's transformer layer forward usually doesn't return weights.
+            # We'll need a trick or modified forward. 
+            # ViT-B-16 laion2b_s34b_b88k uses the standard open_clip transformer.
+            pass
+        return hook
+
+    # Alternative: For OpenCLIP ViT-B-16, we can extract the q, k, v and compute attention ourselves.
+    # Or use a slightly more complex hook to get weights. 
+    # The standard open_clip MultiheadAttention doesn't return weights.
     
-    A_lh = torch.zeros((L, num_heads, 14, 14), device=DEVICE)
+    # Let's use a simpler approach for CHILI if weights aren't readily available:
+    # We can compute them from Q and K.
+    
+    # Hooks to capture necessary components
+    def capture_attn_input(layer_id):
+        def hook(module, input, output):
+            # input[0] is the hidden state 'x' before projection
+            # MultiheadAttention.forward(query, key, value, ...) 
+            # In ViT, query=key=value=x
+            activations_map[f'x_{layer_id}'] = input[0].detach()
+        return hook
+
+    for i, resblock in enumerate(model.visual.transformer.resblocks):
+        layer_hooks.append(resblock.attn.register_forward_hook(capture_attn_input(i)))
+
+    with torch.no_grad():
+        _ = model.visual(image_input)
+    
+    for h in layer_hooks:
+        h.remove()
+
+    L = len(model.visual.transformer.resblocks)
+    num_heads = 12 
+    head_dim = 768 // num_heads
+    grid_size = 14
+    
+    A_lh = torch.zeros((L, num_heads, grid_size, grid_size), device=DEVICE)
+    visual_projection = model.visual.proj
     
     for l in range(L):
-        layer = vision_model.encoder.layers[l]
-        z_prev = hidden_states[l] 
-        z_norm = layer.layer_norm1(z_prev)
-        v = layer.self_attn.v_proj(z_norm)
-        bsz, tgt_len, embed_dim = v.size()
-        v_heads = v.view(bsz, tgt_len, num_heads, head_dim).transpose(1, 2) 
+        x = activations_map[f'x_{l}'] # [197, 1, 768] usually for torch.nn.MHA if batch_first=False
+        if x.shape[0] == 1 and x.shape[1] != 1:
+            # batch_first=True
+            pass
+        else:
+            # batch_first=False, transpose to [1, 197, 768]
+            x = x.transpose(0, 1)
+            
+        # Manually compute Q, K, V from in_proj_weight
+        attn_module = model.visual.transformer.resblocks[l].attn
+        w = attn_module.in_proj_weight # [2304, 768]
+        b = attn_module.in_proj_bias   # [2304]
         
-        attn = attentions[l]
+        qkv = F.linear(x, w, b) # [1, 197, 2304]
+        qkv = qkv.reshape(1, 197, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]
+        
+        attn = (q @ k.transpose(-2, -1)) * (head_dim ** -0.5)
+        attn = attn.softmax(dim=-1) 
         alpha_cls = attn[0, :, 0, 1:] 
-        W_o = layer.self_attn.out_proj.weight 
+        
+        W_o = attn_module.out_proj.weight 
         
         for h in range(num_heads):
-            v_h = v_heads[0, h, 1:] * alpha_cls[h].unsqueeze(-1)
-            padded_v = torch.zeros(tgt_len - 1, embed_dim, device=v.device, dtype=v.dtype)
+            # v_h: [196, 64]
+            # alpha_cls[h]: [196]
+            v_h = v[0, h, 1:] * alpha_cls[h].unsqueeze(-1) # [196, 64]
+            
+            padded_v = torch.zeros(196, 768, device=DEVICE, dtype=qkv.dtype)
             padded_v[:, h*head_dim : (h+1)*head_dim] = v_h
-            msa_out = torch.matmul(padded_v, W_o.t())
-            m = torch.matmul(msa_out, visual_projection.weight.t())
-            A = torch.matmul(m, text_emb.to(DEVICE))
-            A_lh[l, h] = A.view(14, 14)
+            
+            msa_out = torch.matmul(padded_v, W_o.t()) # [196, 768]
+            
+            # Project to CLIP space
+            if visual_projection is not None:
+                m = torch.matmul(msa_out, visual_projection) # [196, 512]
+            else:
+                m = msa_out # some models don't have visual proj
+                
+            A = torch.matmul(m, text_emb) # [196]
+            A_lh[l, h] = A.view(grid_size, grid_size)
             
     return A_lh.detach().cpu().numpy()
 
@@ -248,12 +294,12 @@ def get_random_calibration_set(coco, ds_dir, k=50):
         calib_data.append({"image": image, "text": text_query, "gt_mask": gt_mask_14})
     return calib_data
 
-def calibrate_weights(model, processor, calib_data):
+def calibrate_weights(model, preprocess, tokenizer, calib_data):
     L, H = 12, 12
     iou_sums = np.zeros((L, H))
     
     for i, data in enumerate(calib_data):
-        A_lh = extract_chili_activations(model, processor, data["image"], data["text"])
+        A_lh = extract_chili_activations(model, preprocess, tokenizer, data["image"], data["text"])
         fm_A = get_fm(A_lh)
         hm_A = get_hm(fm_A)
         for l in range(L):
@@ -266,7 +312,7 @@ def calibrate_weights(model, processor, calib_data):
     return w_lh
 
 # Core evaluation logic parameterized
-def evaluate_config(coco, images_dir, img_ids, model, processor, w_lh, max_atoms_cap, sparse_threshold, max_dict_cos_sim, image_size):
+def evaluate_config(coco, images_dir, img_ids, model, preprocess, tokenizer, w_lh, max_atoms_cap, sparse_threshold, max_dict_cos_sim, image_size):
     total_inter = np.zeros(2)
     total_union = np.zeros(2)
     total_correct = 0
@@ -282,19 +328,19 @@ def evaluate_config(coco, images_dir, img_ids, model, processor, w_lh, max_atoms
             
         try:
             image = Image.open(img_path).convert("RGB")
-            image = image.resize((image_size, image_size), Image.BICUBIC)
+            # Image size and preprocess are handled inside extract_chili_activations 
+            # but we resize here for gt_mask consistency
             
             categories = get_image_parts(coco, img_id)
             if len(categories) < 2:
                 continue
                 
             cat_names = [cat['name'] for cat in categories]
-            prompts = [f"a photo of a {name}" for name in cat_names]
+            prompts = [f"a photo of a {name}." for name in cat_names]
             
-            text_inputs = processor(text=prompts, return_tensors="pt", padding=True)
-            text_inputs = {k: v.to(DEVICE) for k, v in text_inputs.items()}
+            text_tokens = tokenizer(prompts).to(DEVICE)
             with torch.no_grad():
-                text_embs = model.get_text_features(**text_inputs)
+                text_embs = model.encode_text(text_tokens)
                 text_embs = text_embs / text_embs.norm(dim=-1, keepdim=True)
                 
             for i, target_cat in enumerate(categories):
@@ -315,7 +361,7 @@ def evaluate_config(coco, images_dir, img_ids, model, processor, w_lh, max_atoms
                 if gt_mask.sum() == 0:
                     continue
                     
-                A_lh = extract_chili_activations(model, processor, image, text_emb=sparse_emb[0])
+                A_lh = extract_chili_activations(model, preprocess, tokenizer, image, text_emb=sparse_emb[0])
                 fm_A = get_fm(A_lh)
                 A_obj_lh = np.zeros_like(fm_A)
                 for l in range(12):
@@ -353,36 +399,30 @@ def main():
     parser.add_argument('--dataset_dir', type=str, default='partimagenet_1000_subset')
     parser.add_argument('--limit', type=int, default=50, help='Number of images to evaluate per trial')
     parser.add_argument('--n_trials', type=int, default=20, help='Number of optimization trials')
-    parser.add_argument('--model_name', type=str, default='openai/clip-vit-base-patch16')
+    parser.add_argument('--model_name', type=str, default='ViT-B-16')
+    parser.add_argument('--pretrained', type=str, default='laion2b_s34b_b88k')
     parser.add_argument('--image_size', type=int, default=224)
     args = parser.parse_args()
 
     annotations_file = os.path.join(args.dataset_dir, 'subset_annotations.json')
     images_dir = os.path.join(args.dataset_dir, 'images')
 
-    print(f"Loading model {args.model_name} on {DEVICE}...")
-    try:
-        model = CLIPModel.from_pretrained(args.model_name, attn_implementation="eager").to(DEVICE)
-    except TypeError:
-        # Fallback for older transformers versions where "eager" was the default and the argument didn't exist
-        model = CLIPModel.from_pretrained(args.model_name).to(DEVICE)
-        
-    processor = CLIPProcessor.from_pretrained(args.model_name)
+    print(f"Loading model {args.model_name} - {args.pretrained} on {DEVICE}...")
+    global model, preprocess, tokenizer
+    model, _, preprocess = open_clip.create_model_and_transforms(args.model_name, pretrained=args.pretrained, device=DEVICE)
+    tokenizer = open_clip.get_tokenizer(args.model_name)
     model.eval()
 
     coco = COCO(annotations_file)
     all_img_ids = coco.getImgIds()
     
-    # We fix the subset of images evaluated across all trials so comparisons are apples-to-apples.
     np.random.seed(42)
     img_ids_subset = np.random.choice(all_img_ids, size=min(args.limit, len(all_img_ids)), replace=False).tolist()
     
     print(f"Loaded dataset. Optimizing on fixed subset of {len(img_ids_subset)} images.")
     
-    # Run a single static CHILI calibration sequence for the model. 
-    # Technically since calibration doesn't involve OMP (only isolated query text), it is static.
     calib_set = get_random_calibration_set(coco, args.dataset_dir, k=min(10, args.limit))
-    w_lh = calibrate_weights(model, processor, calib_set)
+    w_lh = calibrate_weights(model, preprocess, tokenizer, calib_set)
     print("Static CHILI calibration applied successfully.")
 
     def objective(trial):
@@ -395,7 +435,8 @@ def main():
             images_dir=images_dir,
             img_ids=img_ids_subset,
             model=model,
-            processor=processor,
+            preprocess=preprocess,
+            tokenizer=tokenizer,
             w_lh=w_lh,
             max_atoms_cap=max_atoms_cap,
             sparse_threshold=sparse_threshold,

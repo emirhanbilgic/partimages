@@ -1,13 +1,15 @@
 import os
+import argparse
 import json
 import torch
+import torch.nn.functional as F
 import numpy as np
 import scipy.ndimage as ndimage
 import cv2
 from tqdm import tqdm
 from PIL import Image
 from sklearn.metrics import average_precision_score, jaccard_score
-from transformers import CLIPModel, CLIPProcessor
+import open_clip
 from pycocotools.coco import COCO
 
 # Suppress warnings
@@ -17,71 +19,83 @@ warnings.filterwarnings("ignore")
 # Hyperparameters
 ALPHA = 5.0
 DEVICE = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
-MODEL_NAME = "openai/clip-vit-base-patch16"
+MODEL_NAME = "ViT-B-16"
+PRETRAINED = "laion2b_s34b_b88k"
 
-print(f"Loading model {MODEL_NAME} on {DEVICE}...")
-try:
-    model = CLIPModel.from_pretrained(MODEL_NAME, attn_implementation="eager").to(DEVICE)
-except TypeError:
-    model = CLIPModel.from_pretrained(MODEL_NAME).to(DEVICE)
-processor = CLIPProcessor.from_pretrained(MODEL_NAME)
+print(f"Loading model {MODEL_NAME} - {PRETRAINED} on {DEVICE}...")
+model, _, preprocess = open_clip.create_model_and_transforms(MODEL_NAME, pretrained=PRETRAINED, device=DEVICE)
+tokenizer = open_clip.get_tokenizer(MODEL_NAME)
 model.eval()
 
-def extract_chili_activations(image, text_query):
-    inputs = processor(text=[text_query], images=image, return_tensors="pt", padding=True)
-    inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
+def extract_chili_activations(image, text_query, text_emb=None):
+    if text_emb is None:
+        text_tokens = tokenizer([text_query]).to(DEVICE)
+        with torch.no_grad():
+            text_emb = model.encode_text(text_tokens)
+            text_emb = text_emb / text_emb.norm(dim=-1, keepdim=True)
+            text_emb = text_emb[0]
+
+    image_input = preprocess(image).unsqueeze(0).to(DEVICE)
     
+    layer_hooks = []
+    activations_map = {}
+    # Hooks to capture necessary components
+    def capture_attn_input(layer_id):
+        def hook(module, input, output):
+            activations_map[f'x_{layer_id}'] = input[0].detach()
+        return hook
+
+    for i, resblock in enumerate(model.visual.transformer.resblocks):
+        layer_hooks.append(resblock.attn.register_forward_hook(capture_attn_input(i)))
+
     with torch.no_grad():
-        outputs = model(**inputs, output_attentions=True, output_hidden_states=True)
-        text_embeds = model.get_text_features(input_ids=inputs["input_ids"], attention_mask=inputs["attention_mask"])
-        text_embeds = text_embeds / text_embeds.norm(dim=-1, keepdim=True)
-        
-    vision_model = model.vision_model
-    hidden_states = outputs.vision_model_output.hidden_states 
-    attentions = outputs.vision_model_output.attentions 
+        _ = model.visual(image_input)
     
-    L = len(vision_model.encoder.layers)
-    num_heads = vision_model.config.num_attention_heads
-    head_dim = vision_model.config.hidden_size // num_heads
+    for h in layer_hooks:
+        h.remove()
+
+    L = len(model.visual.transformer.resblocks)
+    num_heads = 12 
+    head_dim = 768 // num_heads
+    grid_size = 14
     
-    visual_projection = model.visual_projection
-    text_emb = text_embeds[0] # [512]
-    
-    # Store A_{l,h} -> shape [L, H, 14, 14]
-    # CLIP patch16 with 224x224 image has 14x14 grid
-    A_lh = torch.zeros((L, num_heads, 14, 14), device=DEVICE)
+    A_lh = torch.zeros((L, num_heads, grid_size, grid_size), device=DEVICE)
+    visual_projection = model.visual.proj
     
     for l in range(L):
-        layer = vision_model.encoder.layers[l]
-        z_prev = hidden_states[l] 
+        x = activations_map[f'x_{l}'] 
+        if x.shape[0] == 1 and x.shape[1] != 1:
+            pass
+        else:
+            x = x.transpose(0, 1)
+            
+        attn_module = model.visual.transformer.resblocks[l].attn
+        w = attn_module.in_proj_weight
+        b = attn_module.in_proj_bias
         
-        z_norm = layer.layer_norm1(z_prev)
-        v = layer.self_attn.v_proj(z_norm)
-        bsz, tgt_len, embed_dim = v.size()
-        v_heads = v.view(bsz, tgt_len, num_heads, head_dim).transpose(1, 2) 
+        qkv = F.linear(x, w, b)
+        qkv = qkv.reshape(1, 197, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]
         
-        attn = attentions[l]
-        alpha_cls = attn[0, :, 0, 1:] # [12, 196] (skip CLS self-attention)
+        attn = (q @ k.transpose(-2, -1)) * (head_dim ** -0.5)
+        attn = attn.softmax(dim=-1) 
+        alpha_cls = attn[0, :, 0, 1:] 
         
-        W_o = layer.self_attn.out_proj.weight 
+        W_o = attn_module.out_proj.weight 
         
         for h in range(num_heads):
-            # [196, 64] * [196, 1] = [196, 64]
-            v_h = v_heads[0, h, 1:] * alpha_cls[h].unsqueeze(-1)
-            
-            padded_v = torch.zeros(tgt_len - 1, embed_dim, device=v.device, dtype=v.dtype)
+            v_h = v[0, h, 1:] * alpha_cls[h].unsqueeze(-1)
+            padded_v = torch.zeros(196, 768, device=DEVICE, dtype=qkv.dtype)
             padded_v[:, h*head_dim : (h+1)*head_dim] = v_h
-            
-            # W_o applies to the padded v -> [196, 768]
             msa_out = torch.matmul(padded_v, W_o.t())
             
-            # P -> [196, 512]
-            m = torch.matmul(msa_out, visual_projection.weight.t())
-            
-            # A_i = <m, M_text> -> [196]
+            if visual_projection is not None:
+                m = torch.matmul(msa_out, visual_projection)
+            else:
+                m = msa_out 
+                
             A = torch.matmul(m, text_emb)
-            
-            A_lh[l, h] = A.view(14, 14)
+            A_lh[l, h] = A.view(grid_size, grid_size)
             
     return A_lh.detach().cpu().numpy()
 
@@ -249,8 +263,6 @@ def compute_metrics(heatmap_np, gt_mask, thr):
         
     return inter, union, correct_pixels, labeled_pixels, ap
 
-import argparse
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--limit', type=int, default=None, help="Run on a small subset of N images")
@@ -357,9 +369,9 @@ def main():
                 save_dir = "visualizations"
                 os.makedirs(save_dir, exist_ok=True)
                 plt.tight_layout()
-                plt.savefig(os.path.join(save_dir, f"vis_{img_id}_{cat['name'].replace(' ', '_')}.png"))
+                plt.savefig(os.path.join(save_dir, f"vis_{img_id}_{target_cat['name'].replace(' ', '_')}.png"))
                 plt.close()
-                print(f"Saved visualization: {save_dir}/vis_{img_id}_{cat['name'].replace(' ', '_')}.png")
+                print(f"Saved visualization: {save_dir}/vis_{img_id}_{target_cat['name'].replace(' ', '_')}.png")
                 
     if len(all_aps) > 0:
         iou = total_inter.astype(np.float64) / (total_union.astype(np.float64) + 1e-10)
